@@ -1,0 +1,45 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-zyncloud}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zyncloud}
+      POSTGRES_DB: ${POSTGRES_DB:-zyncloud}
+    volumes:
+      - zyncloud-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-zyncloud} -d ${POSTGRES_DB:-zyncloud}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  zyncloud:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+        NEXT_PUBLIC_PUBLIC_HOST: ${NEXT_PUBLIC_PUBLIC_HOST:-localhost}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+      - "${API_PORT:-4000}:4000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - zyncloud-backups:/var/lib/zyncloud/backups
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-zyncloud}:${POSTGRES_PASSWORD:-zyncloud}@db:5432/${POSTGRES_DB:-zyncloud}
+      JWT_SECRET: ${JWT_SECRET:-zyncloud-production-secret-change-me}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
+      BACKUP_DIR: /var/lib/zyncloud/backups
+    restart: unless-stopped
+
+volumes:
+  zyncloud-db-data:
+  zyncloud-backups:

@@ -1,0 +1,76 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  password  String
+  name      String
+  createdAt DateTime   @default(now())
+  instances Instance[]
+  domains   Domain[]
+  sshKeys   SshKey[]
+}
+
+model SshKey {
+  id          String     @id @default(cuid())
+  name        String
+  fingerprint String
+  publicKey   String
+  createdAt   DateTime   @default(now())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  instances   Instance[]
+
+  @@unique([userId, name])
+}
+
+model Instance {
+  id          String   @id @default(cuid())
+  name        String
+  containerId String?  @unique
+  imageTag    String   @default("zyncloud/ubuntu-base:latest")
+  status      String   @default("stopped")
+  memoryLimit Int      @default(512)
+  cpuLimit    Float    @default(0.5)
+  internalPort Int?
+  httpPort    Int?
+  sshPort     Int?
+  ipAddress   String?
+  sshKeyId    String?
+  sshKey      SshKey?  @relation(fields: [sshKeyId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  domains     Domain[]
+  backups     Backup[]
+}
+
+model Domain {
+  id          String   @id @default(cuid())
+  domain      String   @unique
+  targetPort  Int
+  sslEnabled  Boolean  @default(false)
+  nginxConfig String?
+  createdAt   DateTime @default(now())
+  instanceId  String
+  instance    Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model Backup {
+  id         String   @id @default(cuid())
+  fileName   String
+  filePath   String
+  fileSize   Int
+  createdAt  DateTime @default(now())
+  instanceId String
+  instance   Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+}

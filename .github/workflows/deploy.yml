@@ -1,0 +1,25 @@
+name: Deploy to PC vieja
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verificar .env
+        run: |
+          if [ ! -f .env ]; then
+            echo "::error::No existe .env en el runner. Crea el archivo en la PC vieja:"
+            echo "  cp .env.example .env && nano .env"
+            exit 1
+          fi
+
+      - name: Deploy
+        run: bash scripts/deploy.sh
