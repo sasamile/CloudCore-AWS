@@ -87,16 +87,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Verificar .env
+      - name: Preparar deploy en ~/zyncloud
         run: |
-          if [ ! -f .env ]; then
-            echo "::error::No existe .env en el runner. Crea el archivo en la PC vieja:"
-            echo "  cp .env.example .env && nano .env"
+          if [ ! -f "$HOME/zyncloud/.env" ]; then
+            echo "::error::No existe $HOME/zyncloud/.env en la PC vieja."
+            echo "  cd ~/zyncloud && cp .env.example .env && nano .env"
             exit 1
           fi
+          mkdir -p "$HOME/zyncloud"
+          cp docker-compose.yml scripts/deploy.sh "$HOME/zyncloud/"
 
       - name: Deploy
-        run: bash scripts/deploy.sh
+        run: bash "$HOME/zyncloud/scripts/deploy.sh"
         env:
           ZYNCLOUD_IMAGE: ${{ env.APP_IMAGE }}:latest
           UBUNTU_BASE_IMAGE: ${{ env.UBUNTU_IMAGE }}:latest
