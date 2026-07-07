@@ -1,12 +1,17 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
 import { Header } from "@/components/layout/header"
 import { api } from "@/lib/api"
-import { HostTerminal } from "@/components/terminal/host-terminal"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Monitor, AlertTriangle } from "lucide-react"
+
+const HostTerminal = dynamic(
+  () => import("@/components/terminal/host-terminal").then((m) => m.HostTerminal),
+  { ssr: false }
+)
 
 interface HostConsoleStatus {
   enabled: boolean
