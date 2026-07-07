@@ -149,7 +149,17 @@ export class HostConsoleService {
             },
           );
         })
-        .on('error', (err) => reject(err))
+        .on('error', (err: NodeJS.ErrnoException) => {
+          if (err.code === 'ECONNREFUSED') {
+            reject(
+              new Error(
+                `SSH rechazado en ${host}:${port}. ¿Está openssh-server activo? (sudo apt install openssh-server && sudo systemctl enable --now ssh). Usa HOST_CONSOLE_SSH_HOST=host.docker.internal en .env`,
+              ),
+            );
+            return;
+          }
+          reject(err);
+        })
         .connect(config);
     });
   }
