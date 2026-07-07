@@ -8,6 +8,11 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        brand: {
+          cyan: "hsl(var(--brand-cyan))",
+          blue: "hsl(var(--brand-blue))",
+          teal: "hsl(var(--brand-teal))",
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

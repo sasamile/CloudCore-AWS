@@ -21,7 +21,7 @@ export default function DashboardLayout({
   return (
     <div className="flex min-h-screen">
       <Sidebar />
-      <main className="flex-1 ml-[240px]">{children}</main>
+      <main className="flex-1 ml-[250px] brand-mesh min-h-screen">{children}</main>
     </div>
   )
 }

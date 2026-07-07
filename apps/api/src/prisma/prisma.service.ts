@@ -5,9 +5,11 @@ import { PrismaClient } from '../generated/prisma/client';
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   constructor() {
-    const adapter = new PrismaPg({
-      connectionString: process.env.DATABASE_URL,
-    });
+    const connectionString =
+      process.env.DATABASE_URL ??
+      'postgresql://zyncloud:zyncloud@localhost:5432/zyncloud';
+
+    const adapter = new PrismaPg({ connectionString });
     super({ adapter });
   }
 

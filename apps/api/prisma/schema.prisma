@@ -16,6 +16,7 @@ model User {
   instances Instance[]
   domains   Domain[]
   sshKeys   SshKey[]
+  buckets   StorageBucket[]
 }
 
 model SshKey {
@@ -74,4 +75,27 @@ model Backup {
   createdAt  DateTime @default(now())
   instanceId String
   instance   Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+}
+
+model StorageBucket {
+  id        String          @id @default(cuid())
+  name      String
+  createdAt DateTime        @default(now())
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  objects   StorageObject[]
+
+  @@unique([userId, name])
+}
+
+model StorageObject {
+  id        String        @id @default(cuid())
+  key       String
+  size      Int
+  mimeType  String?
+  createdAt DateTime      @default(now())
+  bucketId  String
+  bucket    StorageBucket @relation(fields: [bucketId], references: [id], onDelete: Cascade)
+
+  @@unique([bucketId, key])
 }

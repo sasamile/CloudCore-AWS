@@ -1,0 +1,1 @@
+-- Consolidado en 20260705164102_init

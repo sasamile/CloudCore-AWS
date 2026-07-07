@@ -18,15 +18,14 @@ ARG NEXT_PUBLIC_PUBLIC_HOST=localhost
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_PUBLIC_HOST=$NEXT_PUBLIC_PUBLIC_HOST
 
-RUN cd apps/api && rm -rf dist tsconfig.tsbuildinfo && DATABASE_URL=postgresql://zyncloud:zyncloud@localhost:5432/zyncloud npx prisma generate
-RUN cd apps/api && npm run build
+RUN cd apps/api && rm -rf dist tsconfig.tsbuildinfo && DATABASE_URL=postgresql://zyncloud:zyncloud@localhost:5432/zyncloud npx prisma generate && node scripts/fix-prisma-enums.js && npm run build
 RUN npm run build --workspace=@zyncloud/web
 
 FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-RUN apk add --no-cache bash
+RUN apk add --no-cache bash openssh-client
 
 COPY --from=builder /app/node_modules ./node_modules
 

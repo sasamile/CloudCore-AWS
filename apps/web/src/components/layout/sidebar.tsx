@@ -10,16 +10,18 @@ import {
   Settings,
   LogOut,
   Key,
-  Cloud,
+  Database,
+  Monitor,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Separator } from "@/components/ui/separator"
+import { Button } from "@/components/ui/button"
+import { Logo } from "@/components/brand/logo"
 
 const navSections = [
   {
     label: "Overview",
-    items: [
-      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    ],
+    items: [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }],
   },
   {
     label: "Compute",
@@ -29,20 +31,20 @@ const navSections = [
     ],
   },
   {
-    label: "Network",
-    items: [
-      { href: "/dashboard/domains", label: "Domains", icon: Globe },
-    ],
-  },
-  {
     label: "Storage",
     items: [
+      { href: "/dashboard/storage", label: "Object Storage", icon: Database },
       { href: "/dashboard/backups", label: "Snapshots", icon: HardDrive },
     ],
   },
   {
+    label: "Network",
+    items: [{ href: "/dashboard/domains", label: "Domains", icon: Globe }],
+  },
+  {
     label: "System",
     items: [
+      { href: "/dashboard/host-console", label: "Server Console", icon: Monitor },
       { href: "/dashboard/settings", label: "Settings", icon: Settings },
     ],
   },
@@ -57,16 +59,16 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="w-[240px] h-screen bg-sidebar border-r border-sidebar-border flex flex-col fixed left-0 top-0 z-40">
-      <div className="h-14 flex items-center gap-2 px-4 border-b border-sidebar-border">
-        <Cloud className="w-5 h-5" />
-        <span className="font-semibold text-sm tracking-tight">ZynCloud</span>
+    <aside className="w-[250px] h-screen bg-sidebar border-r border-sidebar-border flex flex-col fixed left-0 top-0 z-40">
+      <div className="h-14 flex items-center px-4 border-b border-sidebar-border">
+        <Logo size={28} showWordmark />
       </div>
 
-      <nav className="flex-1 overflow-y-auto p-2">
-        {navSections.map((section) => (
-          <div key={section.label} className="mb-4">
-            <div className="px-3 mb-1 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+      <nav className="flex-1 overflow-y-auto p-3">
+        {navSections.map((section, index) => (
+          <div key={section.label}>
+            {index > 0 && <Separator className="my-3 bg-sidebar-border" />}
+            <div className="px-2 mb-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
               {section.label}
             </div>
             <div className="space-y-0.5">
@@ -80,13 +82,18 @@ export function Sidebar() {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors",
+                      "flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-all",
                       isActive
-                        ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                        : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium border-l-2 border-foreground"
+                        : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground border-l-2 border-transparent"
                     )}
                   >
-                    <item.icon className="w-4 h-4" />
+                    <item.icon
+                      className={cn(
+                        "w-4 h-4",
+                        isActive ? "text-foreground" : "text-muted-foreground"
+                      )}
+                    />
                     {item.label}
                   </Link>
                 )
@@ -96,14 +103,15 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="border-t border-sidebar-border p-2">
-        <button
+      <div className="border-t border-sidebar-border p-3">
+        <Button
+          variant="ghost"
           onClick={handleLogout}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors w-full"
+          className="w-full justify-start gap-2.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
         >
           <LogOut className="w-4 h-4" />
           Sign out
-        </button>
+        </Button>
       </div>
     </aside>
   )

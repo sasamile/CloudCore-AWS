@@ -4,69 +4,67 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 224 71% 4%;
+    --background: 0 0% 99%;
+    --foreground: 0 0% 9%;
     --card: 0 0% 100%;
-    --card-foreground: 224 71% 4%;
+    --card-foreground: 0 0% 9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 224 71% 4%;
+    --popover-foreground: 0 0% 9%;
     --primary: 0 0% 9%;
     --primary-foreground: 0 0% 98%;
-    --secondary: 220 14% 96%;
+    --secondary: 0 0% 96%;
     --secondary-foreground: 0 0% 9%;
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
-    --accent: 220 14% 96%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 0 0% 94%;
     --accent-foreground: 0 0% 9%;
-    --destructive: 0 84% 60%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 224 71% 4%;
-    --radius: 0.5rem;
-    --success: 142 71% 45%;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 0 0% 9%;
+    --radius: 0.625rem;
+    --success: 142 76% 36%;
     --warning: 38 92% 50%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+    --brand-cyan: 187 100% 54%;
+    --brand-blue: 213 97% 60%;
+    --brand-teal: 168 100% 45%;
     --sidebar: 0 0% 98%;
-    --sidebar-foreground: 224 71% 4%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-accent: 220 14% 96%;
+    --sidebar-foreground: 0 0% 9%;
+    --sidebar-border: 0 0% 92%;
+    --sidebar-accent: 0 0% 94%;
     --sidebar-accent-foreground: 0 0% 9%;
-    --sidebar-ring: 224 71% 4%;
+    --sidebar-ring: 0 0% 9%;
   }
 
   .dark {
-    --background: 224 71% 4%;
-    --foreground: 210 20% 98%;
-    --card: 224 71% 4%;
-    --card-foreground: 210 20% 98%;
-    --popover: 224 71% 4%;
-    --popover-foreground: 210 20% 98%;
-    --primary: 210 20% 98%;
-    --primary-foreground: 220 14% 4%;
-    --secondary: 215 28% 17%;
-    --secondary-foreground: 210 20% 98%;
-    --muted: 215 28% 17%;
-    --muted-foreground: 217 9% 59%;
-    --accent: 215 28% 17%;
-    --accent-foreground: 210 20% 98%;
-    --destructive: 0 62% 30%;
+    --background: 0 0% 4%;
+    --foreground: 0 0% 95%;
+    --card: 0 0% 7%;
+    --card-foreground: 0 0% 95%;
+    --popover: 0 0% 7%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 95%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 58%;
+    --accent: 0 0% 14%;
+    --accent-foreground: 0 0% 95%;
+    --destructive: 0 62% 50%;
     --destructive-foreground: 0 0% 98%;
-    --border: 215 28% 17%;
-    --input: 215 28% 17%;
-    --ring: 216 12% 84%;
-    --success: 142 71% 45%;
+    --border: 0 0% 16%;
+    --input: 0 0% 16%;
+    --ring: 0 0% 83%;
+    --success: 142 70% 45%;
     --warning: 38 92% 50%;
-    --sidebar: 224 71% 4%;
-    --sidebar-foreground: 210 20% 98%;
-    --sidebar-border: 215 28% 17%;
-    --sidebar-accent: 215 28% 17%;
-    --sidebar-accent-foreground: 210 20% 98%;
-    --sidebar-ring: 216 12% 84%;
+    --sidebar: 0 0% 3%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-border: 0 0% 14%;
+    --sidebar-accent: 0 0% 11%;
+    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-ring: 0 0% 83%;
   }
 }
 
@@ -75,6 +73,40 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+@layer utilities {
+  .brand-mesh {
+    background-color: hsl(var(--background));
+    background-image:
+      radial-gradient(circle at 1px 1px, hsl(var(--foreground) / 0.04) 1px, transparent 0);
+    background-size: 24px 24px;
+  }
+
+  .dark .brand-mesh {
+    background-image:
+      radial-gradient(circle at 1px 1px, hsl(var(--foreground) / 0.06) 1px, transparent 0);
+    background-size: 24px 24px;
+  }
+
+  .login-canvas {
+    background-color: hsl(var(--background));
+    background-image:
+      linear-gradient(to right, hsl(var(--foreground) / 0.035) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--foreground) / 0.035) 1px, transparent 1px),
+      radial-gradient(ellipse 70% 50% at 50% -10%, hsl(var(--brand-cyan) / 0.07), transparent 55%),
+      radial-gradient(ellipse 50% 40% at 100% 100%, hsl(var(--brand-blue) / 0.05), transparent 50%);
+    background-size: 40px 40px, 40px 40px, auto, auto;
+  }
+
+  .dark .login-canvas {
+    background-image:
+      linear-gradient(to right, hsl(var(--foreground) / 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--foreground) / 0.05) 1px, transparent 1px),
+      radial-gradient(ellipse 70% 50% at 50% -10%, hsl(var(--brand-cyan) / 0.08), transparent 55%),
+      radial-gradient(ellipse 50% 40% at 0% 100%, hsl(var(--brand-teal) / 0.06), transparent 50%);
+    background-size: 40px 40px, 40px 40px, auto, auto;
   }
 }

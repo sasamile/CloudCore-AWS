@@ -1,11 +1,13 @@
 import type { Metadata } from "next"
 import { GeistSans } from "geist/font/sans"
 import { ThemeProvider } from "@/components/theme-provider"
+import { Toaster } from "@/components/ui/toaster"
 import "./globals.css"
 
 export const metadata: Metadata = {
   title: "ZynCloud",
   description: "Cloud management console for Docker instances",
+  icons: { icon: "/logo.svg", apple: "/logo.svg" },
 }
 
 export default function RootLayout({
@@ -16,7 +18,10 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <body className={`${GeistSans.className} antialiased`}>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          {children}
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   )

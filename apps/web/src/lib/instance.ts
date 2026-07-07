@@ -15,6 +15,10 @@ export interface InstanceNetworking {
   httpUrl: string | null
   sshCommand: string | null
   sshKeyName: string | null
+  routingMode?: string
+  baseDomain?: string | null
+  suggestedHostname?: string | null
+  suggestedDomain?: string | null
   createdAt: string
   domains: { id: string; domain: string; sslEnabled: boolean }[]
 }

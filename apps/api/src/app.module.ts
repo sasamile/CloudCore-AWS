@@ -7,17 +7,23 @@ import { MonitoringModule } from './monitoring/monitoring.module';
 import { BackupsModule } from './backups/backups.module';
 import { DockerModule } from './docker/docker.module';
 import { SshKeysModule } from './ssh-keys/ssh-keys.module';
+import { TunnelModule } from './tunnel/tunnel.module';
+import { StorageModule } from './storage/storage.module';
+import { HostConsoleModule } from './host-console/host-console.module';
 
 @Module({
   imports: [
     PrismaModule,
     DockerModule,
+    TunnelModule,
     AuthModule,
     InstancesModule,
     DomainsModule,
     MonitoringModule,
     BackupsModule,
     SshKeysModule,
+    StorageModule,
+    HostConsoleModule,
   ],
 })
 export class AppModule {}

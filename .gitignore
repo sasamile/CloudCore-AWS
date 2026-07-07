@@ -2,6 +2,7 @@ node_modules
 .next
 dist
 apps/api/src/generated
+apps/api/src/generated/prisma/enums.js
 .turbo
 **/*.tsbuildinfo
 *.db

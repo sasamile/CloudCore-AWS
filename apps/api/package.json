@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "nest start --watch",
-    "build": "nest build",
-    "start": "node dist/main",
+    "dev": "prisma generate && node scripts/fix-prisma-enums.js && node scripts/free-port.js && nest start --watch",
+    "build": "prisma generate && node scripts/fix-prisma-enums.js && nest build && node scripts/fix-prisma-enums.js",
+    "start": "node dist/main.js",
     "lint": "eslint src --ext .ts"
   },
   "dependencies": {
@@ -28,16 +28,19 @@
     "pg": "^8.0.0",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.0",
-    "socket.io": "^4.8.0"
+    "socket.io": "^4.8.0",
+    "ssh2": "^1.17.0"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.0",
     "@nestjs/schematics": "^10.2.0",
     "@types/bcrypt": "^5.0.0",
     "@types/dockerode": "^3.3.0",
+    "@types/multer": "^2.2.0",
     "@types/node": "^20.0.0",
     "@types/passport-jwt": "^4.0.0",
     "@types/pg": "^8.0.0",
+    "@types/ssh2": "^1.15.5",
     "prisma": "^7.0.0",
     "typescript": "^5.0.0"
   }

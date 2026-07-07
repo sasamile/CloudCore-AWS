@@ -1,3 +1,5 @@
+import { formatApiError } from "./format-api-error"
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"
 
 function getToken() {
@@ -27,6 +29,7 @@ export async function apiFetch<T>(
   if (res.status === 401) {
     if (typeof window !== "undefined") {
       localStorage.removeItem("token")
+      sessionStorage.setItem("auth_error", "Your session expired. Please sign in again.")
       window.location.href = "/"
     }
     throw new Error("No autorizado")
@@ -34,7 +37,7 @@ export async function apiFetch<T>(
 
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
-    throw new Error(data.message || `Error ${res.status}`)
+    throw new Error(formatApiError(data.message, `Error ${res.status}`))
   }
 
   return res.json()

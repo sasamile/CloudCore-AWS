@@ -5,8 +5,16 @@ import { useRouter } from "next/navigation"
 import { Header } from "@/components/layout/header"
 import { api } from "@/lib/api"
 import { downloadPem } from "@/lib/instance"
-import { ArrowLeft, Key, Download, Plus } from "lucide-react"
+import { toast } from "@/hooks/use-toast"
+import { formatApiError } from "@/lib/format-api-error"
+import { ArrowLeft, Key, Download, Plus, Server } from "lucide-react"
 import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
 
 const PRESETS = [
   { name: "z1.micro", memory: 256, cpu: 0.25, desc: "Testing & lightweight apps" },
@@ -67,10 +75,13 @@ export default function NewInstancePage() {
         ...(keyId ? { sshKeyId: keyId } : {}),
       })
 
+      toast({ title: "Instance launched", description: `${name} is being created.` })
       const qs = keyName ? `?new=1&key=${encodeURIComponent(keyName)}` : "?new=1"
       router.push(`/dashboard/instances/${instance.id}${qs}`)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Error creating instance")
+      const msg = formatApiError(err instanceof Error ? err.message : undefined, "Error creating instance")
+      setError(msg)
+      toast({ title: "Launch failed", description: msg, variant: "destructive" })
     } finally {
       setLoading(false)
     }
@@ -85,151 +96,187 @@ export default function NewInstancePage() {
           { label: "Instances", href: "/dashboard/instances" },
         ]}
       />
-      <div className="p-6 max-w-2xl space-y-6">
-        <Link href="/dashboard/instances" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft className="w-3.5 h-3.5" /> Back to instances
-        </Link>
+      <div className="p-6 max-w-3xl mx-auto space-y-6">
+        <Button variant="ghost" size="sm" asChild className="-ml-2 text-muted-foreground">
+          <Link href="/dashboard/instances">
+            <ArrowLeft className="w-3.5 h-3.5" /> Back to instances
+          </Link>
+        </Button>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-2">
-            <label className="text-sm font-medium leading-none">Instance name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              placeholder="my-next-server"
-              required
-            />
+        <div className="flex items-start gap-4">
+          <div className="hidden sm:flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border bg-muted">
+            <Server className="w-5 h-5 text-muted-foreground" />
           </div>
-
-          <div className="space-y-3">
-            <label className="text-sm font-medium leading-none">Instance type</label>
-            <div className="rounded-lg border overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="h-9 px-4 text-left w-8"></th>
-                    <th className="h-9 px-4 text-left font-medium text-muted-foreground">Type</th>
-                    <th className="h-9 px-4 text-left font-medium text-muted-foreground">vCPU</th>
-                    <th className="h-9 px-4 text-left font-medium text-muted-foreground">Memory</th>
-                    <th className="h-9 px-4 text-left font-medium text-muted-foreground">Use case</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {PRESETS.map((p) => (
-                    <tr
-                      key={p.name}
-                      className={`border-b last:border-0 cursor-pointer transition-colors ${selectedPreset === p.name ? "bg-muted/50" : "hover:bg-muted/30"}`}
-                      onClick={() => { setSelectedPreset(p.name); setMemoryLimit(p.memory); setCpuLimit(p.cpu) }}
-                    >
-                      <td className="px-4 py-2.5">
-                        <input type="radio" name="preset" checked={selectedPreset === p.name} readOnly className="accent-foreground" />
-                      </td>
-                      <td className="px-4 py-2.5 font-mono font-medium">{p.name}</td>
-                      <td className="px-4 py-2.5">{p.cpu}</td>
-                      <td className="px-4 py-2.5">{p.memory} MB</td>
-                      <td className="px-4 py-2.5 text-muted-foreground text-xs">{p.desc}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <label className="text-sm font-medium leading-none flex items-center gap-1.5">
-              <Key className="w-3.5 h-3.5" /> Key pair (SSH)
-            </label>
-            <div className="rounded-lg border overflow-hidden">
-              {([
-                { mode: "create" as KeyMode, label: "Crear nuevo key pair", desc: "Genera y descarga el .pem automáticamente" },
-                { mode: "existing" as KeyMode, label: "Usar key pair existente", desc: "Selecciona uno ya creado" },
-                { mode: "none" as KeyMode, label: "Sin SSH (solo terminal web)", desc: "Acceso solo desde el navegador" },
-              ]).map((opt) => (
-                <label
-                  key={opt.mode}
-                  className={`flex items-start gap-3 px-4 py-3 cursor-pointer border-b last:border-0 transition-colors ${keyMode === opt.mode ? "bg-muted/50" : "hover:bg-muted/30"}`}
-                >
-                  <input
-                    type="radio"
-                    name="keyMode"
-                    checked={keyMode === opt.mode}
-                    onChange={() => setKeyMode(opt.mode)}
-                    className="mt-1 accent-foreground"
-                  />
-                  <div>
-                    <p className="text-sm font-medium">{opt.label}</p>
-                    <p className="text-xs text-muted-foreground">{opt.desc}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-
-            {keyMode === "create" && (
-              <div className="space-y-1.5 pl-1">
-                <label className="text-xs text-muted-foreground">Nombre del key pair</label>
-                <input
-                  type="text"
-                  value={newKeyName}
-                  onChange={(e) => setNewKeyName(e.target.value)}
-                  className="flex h-9 w-full max-w-md rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  placeholder={name || "my-key-pair"}
-                  required
-                />
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Download className="w-3 h-3" />
-                  Se descargará <code className="font-mono">{newKeyName || name || "key"}.pem</code> a tu carpeta de descargas. Guárdalo en <code className="font-mono">~/.ssh/</code>
-                </p>
-              </div>
-            )}
-
-            {keyMode === "existing" && (
-              <div className="space-y-1.5 pl-1">
-                {sshKeys.length > 0 ? (
-                  <select
-                    value={sshKeyId}
-                    onChange={(e) => setSshKeyId(e.target.value)}
-                    required
-                    className="flex h-9 w-full max-w-md rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    <option value="">Seleccionar key pair...</option>
-                    {sshKeys.map((k) => (
-                      <option key={k.id} value={k.id}>{k.name}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    No tienes key pairs.{" "}
-                    <button type="button" onClick={() => setKeyMode("create")} className="underline inline-flex items-center gap-0.5">
-                      <Plus className="w-3 h-3" /> Crear uno
-                    </button>
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-lg border p-4 bg-muted/30">
-            <p className="text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">Summary:</span> Ubuntu 22.04 + Node.js 20 &middot; {selectedPreset || "Custom"} &middot; {memoryLimit} MB &middot; {cpuLimit} vCPU
-              {keyMode !== "none" && <> &middot; SSH habilitado</>}
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight">New compute instance</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Ubuntu 22.04 with Node.js 20. Pick a size and optional SSH access.
             </p>
           </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base">General</CardTitle>
+              <CardDescription>Name your instance for easy identification.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 max-w-md">
+                <Label htmlFor="name">Instance name</Label>
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="my-next-server"
+                  required
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base">Instance type</CardTitle>
+              <CardDescription>CPU and memory for your workload.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="divide-y">
+                {PRESETS.map((p) => (
+                  <label
+                    key={p.name}
+                    className={`flex items-center gap-4 px-6 py-4 cursor-pointer transition-colors ${
+                      selectedPreset === p.name ? "bg-muted/60" : "hover:bg-muted/30"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="preset"
+                      checked={selectedPreset === p.name}
+                      onChange={() => {
+                        setSelectedPreset(p.name)
+                        setMemoryLimit(p.memory)
+                        setCpuLimit(p.cpu)
+                      }}
+                      className="accent-foreground"
+                    />
+                    <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-4 gap-1 sm:gap-4 items-center">
+                      <span className="font-mono font-medium text-sm">{p.name}</span>
+                      <span className="text-sm text-muted-foreground">{p.cpu} vCPU</span>
+                      <span className="text-sm text-muted-foreground">{p.memory} MB</span>
+                      <span className="text-xs text-muted-foreground truncate">{p.desc}</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Key className="w-4 h-4" /> Key pair (SSH)
+              </CardTitle>
+              <CardDescription>How you will connect to the instance.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                {([
+                  { mode: "create" as KeyMode, label: "Create new key pair", desc: "Generate and download .pem automatically" },
+                  { mode: "existing" as KeyMode, label: "Use existing key pair", desc: "Select one you already created" },
+                  { mode: "none" as KeyMode, label: "No SSH (web terminal only)", desc: "Browser access only" },
+                ]).map((opt) => (
+                  <label
+                    key={opt.mode}
+                    className={`flex items-start gap-3 rounded-lg border px-4 py-3 cursor-pointer transition-colors ${
+                      keyMode === opt.mode ? "border-foreground/30 bg-muted/50" : "hover:bg-muted/30"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="keyMode"
+                      checked={keyMode === opt.mode}
+                      onChange={() => setKeyMode(opt.mode)}
+                      className="mt-1 accent-foreground"
+                    />
+                    <div>
+                      <p className="text-sm font-medium">{opt.label}</p>
+                      <p className="text-xs text-muted-foreground">{opt.desc}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              {keyMode === "create" && (
+                <div className="space-y-2 pl-1 max-w-md">
+                  <Label htmlFor="keyName">Key pair name</Label>
+                  <Input
+                    id="keyName"
+                    value={newKeyName}
+                    onChange={(e) => setNewKeyName(e.target.value)}
+                    placeholder={name || "my-key-pair"}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Download className="w-3 h-3" />
+                    Downloads <code className="font-mono">{newKeyName || name || "key"}.pem</code> — save to <code className="font-mono">~/.ssh/</code>
+                  </p>
+                </div>
+              )}
+
+              {keyMode === "existing" && (
+                <div className="pl-1 max-w-md">
+                  {sshKeys.length > 0 ? (
+                    <select
+                      value={sshKeyId}
+                      onChange={(e) => setSshKeyId(e.target.value)}
+                      required
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      <option value="">Select key pair...</option>
+                      {sshKeys.map((k) => (
+                        <option key={k.id} value={k.id}>{k.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      No key pairs yet.{" "}
+                      <button type="button" onClick={() => setKeyMode("create")} className="underline inline-flex items-center gap-0.5">
+                        <Plus className="w-3 h-3" /> Create one
+                      </button>
+                    </p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="bg-muted/30">
+            <CardContent className="py-4 flex flex-wrap items-center gap-2 text-sm">
+              <span className="font-medium">Summary</span>
+              <Separator orientation="vertical" className="h-4 hidden sm:block" />
+              <Badge variant="secondary">Ubuntu 22.04</Badge>
+              <Badge variant="secondary">Node.js 20</Badge>
+              <Badge variant="outline">{selectedPreset}</Badge>
+              <Badge variant="outline">{memoryLimit} MB</Badge>
+              <Badge variant="outline">{cpuLimit} vCPU</Badge>
+              {keyMode !== "none" && <Badge variant="outline">SSH</Badge>}
+            </CardContent>
+          </Card>
 
           {error && (
-            <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
               {error}
             </div>
           )}
 
-          <div className="flex items-center justify-end gap-2">
-            <button type="button" onClick={() => router.back()} className="inline-flex items-center justify-center rounded-md text-sm font-medium border bg-background hover:bg-accent h-9 px-4 transition-colors">
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => router.back()}>
               Cancel
-            </button>
-            <button type="submit" disabled={loading} className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 disabled:opacity-50">
+            </Button>
+            <Button type="submit" disabled={loading}>
               {loading ? "Launching..." : "Launch instance"}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

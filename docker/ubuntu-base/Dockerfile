@@ -13,7 +13,9 @@ RUN apt-get update && apt-get install -y \
     && sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
 
 ENV NODE_VERSION=20.18.2
-RUN curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" -o /tmp/node.tar.xz \
+ARG TARGETARCH
+RUN ARCH=$(case "${TARGETARCH}" in arm64) echo arm64 ;; *) echo x64 ;; esac) \
+    && curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${ARCH}.tar.xz" -o /tmp/node.tar.xz \
     && tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 \
     && rm /tmp/node.tar.xz \
     && node --version \

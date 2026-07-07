@@ -4,6 +4,19 @@ import { useEffect, useState } from "react"
 import { Header } from "@/components/layout/header"
 import { api } from "@/lib/api"
 import { Key, Plus, Trash2, Download, RefreshCw, Search, Copy, Check } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
 interface KeyPair {
   id: string
@@ -108,162 +121,169 @@ export default function SSHKeysPage() {
       />
       <div className="p-6 space-y-4">
         {createdKey && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-500/30 p-5 space-y-3">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="font-semibold text-sm">Key pair creado exitosamente</h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Descarga el archivo .pem ahora. No podrás descargarlo de nuevo.
-                </p>
+          <Alert variant="warning">
+            <AlertTitle>Key pair creado exitosamente</AlertTitle>
+            <AlertDescription className="mt-2 space-y-3">
+              <p>Descarga el archivo .pem ahora. No podrás descargarlo de nuevo.</p>
+              <div className="flex items-center gap-2">
+                <Button size="sm" onClick={() => downloadKey(createdKey.name, createdKey.privateKey)}>
+                  <Download className="w-3.5 h-3.5" /> Descargar .pem
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => copyToClipboard(createdKey.privateKey)}>
+                  {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copied ? "Copiado" : "Copiar clave"}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setCreatedKey(null)} className="ml-auto">
+                  Cerrar
+                </Button>
               </div>
-              <button onClick={() => setCreatedKey(null)} className="text-muted-foreground hover:text-foreground text-sm">
-                Cerrar
-              </button>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => downloadKey(createdKey.name, createdKey.privateKey)}
-                className="inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 h-8 px-3 text-xs font-medium"
-              >
-                <Download className="w-3.5 h-3.5" /> Descargar .pem
-              </button>
-              <button
-                onClick={() => copyToClipboard(createdKey.privateKey)}
-                className="inline-flex items-center gap-1.5 rounded-md border bg-background hover:bg-accent h-8 px-3 text-xs font-medium"
-              >
-                {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied ? "Copiado" : "Copiar clave"}
-              </button>
-            </div>
-          </div>
+            </AlertDescription>
+          </Alert>
         )}
 
         {showCreate && (
-          <div className="rounded-lg border p-5">
-            <h3 className="font-semibold text-sm mb-4">Create key pair</h3>
-            <form onSubmit={handleCreate} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1.5">Key pair name</label>
-                <input
-                  type="text"
-                  value={newKeyName}
-                  onChange={(e) => setNewKeyName(e.target.value)}
-                  className="flex h-9 w-full max-w-md rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  placeholder="my-key-pair"
-                  required
-                />
-              </div>
-              <div className="flex gap-2">
-                <button type="submit" disabled={creating} className="inline-flex items-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 h-8 px-4 text-xs font-medium disabled:opacity-50">
-                  {creating ? "Creating..." : "Create key pair"}
-                </button>
-                <button type="button" onClick={() => setShowCreate(false)} className="inline-flex items-center rounded-md border bg-background hover:bg-accent h-8 px-4 text-xs font-medium">
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Create key pair</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleCreate} className="space-y-4">
+                <div className="space-y-2 max-w-md">
+                  <Label htmlFor="keyName">Key pair name</Label>
+                  <Input
+                    id="keyName"
+                    value={newKeyName}
+                    onChange={(e) => setNewKeyName(e.target.value)}
+                    placeholder="my-key-pair"
+                    required
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button type="submit" size="sm" disabled={creating}>
+                    {creating ? "Creating..." : "Create key pair"}
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setShowCreate(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
         )}
 
         {error && (
-          <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {error}
-          </div>
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
-        <div className="rounded-lg border">
-          <div className="px-4 py-3 border-b flex items-center justify-between">
-            <h2 className="font-semibold text-sm">Key Pairs ({filtered.length})</h2>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between py-4 space-y-0">
+            <CardTitle className="text-sm font-medium">Key Pairs ({filtered.length})</CardTitle>
             <div className="flex items-center gap-2">
-              <button onClick={fetchKeys} title="Actualizar" className="inline-flex items-center justify-center rounded-md border bg-background hover:bg-accent h-8 w-8">
+              <Button variant="outline" size="icon" onClick={fetchKeys} title="Actualizar">
                 <RefreshCw className="w-3.5 h-3.5" />
-              </button>
+              </Button>
               {selected.size > 0 && (
-                <button
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive border-destructive/30 hover:bg-destructive/10"
                   onClick={() => {
                     if (!confirm(`Delete ${selected.size} key pair(s)?`)) return
                     selected.forEach((id) => handleDelete(id))
                   }}
-                  className="inline-flex items-center rounded-md border border-destructive/30 text-destructive hover:bg-destructive/10 h-8 px-3 text-xs font-medium"
                 >
                   Delete
-                </button>
+                </Button>
               )}
-              <button onClick={() => setShowCreate(true)} className="inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 h-8 px-3 text-xs font-medium">
+              <Button size="sm" onClick={() => setShowCreate(true)}>
                 <Plus className="w-3.5 h-3.5" /> Create key pair
-              </button>
+              </Button>
             </div>
-          </div>
+          </CardHeader>
 
-          <div className="px-4 py-2.5 border-b bg-muted/30">
-            <div className="relative max-w-xs">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Filter key pairs..."
-                className="flex h-8 w-full rounded-md border border-input bg-transparent pl-8 pr-3 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              />
+          <CardContent className="p-0">
+            <div className="px-4 py-3 border-y bg-muted/30">
+              <div className="relative max-w-xs">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Filter key pairs..."
+                  className="h-8 pl-8 text-xs"
+                />
+              </div>
             </div>
-          </div>
 
-          {loading ? (
-            <div className="p-8 text-center text-sm text-muted-foreground">Loading key pairs...</div>
-          ) : filtered.length === 0 ? (
-            <div className="p-12 text-center">
-              <Key className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground mb-4">
-                {search ? "No key pairs match your filter" : "No key pairs yet"}
-              </p>
-              {!search && (
-                <button onClick={() => setShowCreate(true)} className="inline-flex items-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 h-8 px-3 text-xs font-medium">
-                  Create key pair
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="h-10 px-4 text-left w-8">
-                      <input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleAll} className="rounded" />
-                    </th>
-                    <th className="h-10 px-4 text-left font-medium text-muted-foreground">Name</th>
-                    <th className="h-10 px-4 text-left font-medium text-muted-foreground">Fingerprint</th>
-                    <th className="h-10 px-4 text-left font-medium text-muted-foreground">Created</th>
-                    <th className="h-10 px-4 text-right font-medium text-muted-foreground">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+            {loading ? (
+              <div className="p-8 text-center text-sm text-muted-foreground">Loading key pairs...</div>
+            ) : filtered.length === 0 ? (
+              <div className="p-12 text-center">
+                <Key className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground mb-4">
+                  {search ? "No key pairs match your filter" : "No key pairs yet"}
+                </p>
+                {!search && (
+                  <Button size="sm" onClick={() => setShowCreate(true)}>Create key pair</Button>
+                )}
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-8">
+                      <input
+                        type="checkbox"
+                        checked={selected.size === filtered.length && filtered.length > 0}
+                        onChange={toggleAll}
+                        className="rounded"
+                      />
+                    </TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Fingerprint</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {filtered.map((key) => (
-                    <tr key={key.id} className="border-b last:border-0 hover:bg-muted/50">
-                      <td className="p-4">
-                        <input type="checkbox" checked={selected.has(key.id)} onChange={() => toggleSelect(key.id)} className="rounded" />
-                      </td>
-                      <td className="p-4">
+                    <TableRow key={key.id}>
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          checked={selected.has(key.id)}
+                          onChange={() => toggleSelect(key.id)}
+                          className="rounded"
+                        />
+                      </TableCell>
+                      <TableCell>
                         <div className="flex items-center gap-2">
                           <Key className="w-3.5 h-3.5 text-muted-foreground" />
                           <span className="font-medium">{key.name}</span>
                         </div>
-                      </td>
-                      <td className="p-4 font-mono text-xs text-muted-foreground">{key.fingerprint}</td>
-                      <td className="p-4 text-xs text-muted-foreground">{new Date(key.createdAt).toLocaleDateString()}</td>
-                      <td className="p-4">
-                        <div className="flex items-center justify-end">
-                          <button onClick={() => handleDelete(key.id)} title="Eliminar key pair" className="p-1.5 rounded hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">{key.fingerprint}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {new Date(key.createdAt).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(key.id)}
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </>
   )

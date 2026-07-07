@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DockerService } from '../docker/docker.service';
 import { SshKeysService } from '../ssh-keys/ssh-keys.service';
 import { enrichInstance, extractContainerIp, getPublicHost } from '../common/networking.util';
+import { TunnelService } from '../tunnel/tunnel.service';
 
 @Injectable()
 export class InstancesService {
@@ -12,13 +13,14 @@ export class InstancesService {
     private prisma: PrismaService,
     private dockerService: DockerService,
     private sshKeysService: SshKeysService,
+    private tunnel: TunnelService,
   ) {}
 
   async findAll(userId: string) {
     const instances = await this.prisma.instance.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
-      include: { sshKey: { select: { name: true } } },
+      include: { sshKey: { select: { name: true } }, domains: { select: { domain: true } } },
     });
     return instances.map((i) => enrichInstance(i));
   }
@@ -74,7 +76,7 @@ export class InstancesService {
     try {
       const container = await this.dockerService.createContainer({
         name: `${instance.id}-${data.name}`,
-        image: 'zyncloud/ubuntu-base:latest',
+        image: process.env.UBUNTU_BASE_IMAGE || 'zyncloud/ubuntu-base:latest',
         memoryLimit: data.memoryLimit,
         cpuLimit: data.cpuLimit,
         hostPort,
@@ -100,7 +102,13 @@ export class InstancesService {
         await this.injectSshKey(updated.containerId!, data.sshKeyId, userId);
       }
 
-      return enrichInstance(updated);
+      await this.tunnel.syncIngress();
+
+      const full = await this.prisma.instance.findUnique({
+        where: { id: instance.id },
+        include: { sshKey: { select: { name: true } }, domains: { select: { domain: true } } },
+      });
+      return enrichInstance(full!);
     } catch (error) {
       this.logger.error(`Failed to create container: ${error.message}`);
       await this.prisma.instance.update({
@@ -195,7 +203,9 @@ export class InstancesService {
       }
     }
 
-    return this.prisma.instance.delete({ where: { id } });
+    await this.prisma.instance.delete({ where: { id } });
+    await this.tunnel.syncIngress();
+    return { ok: true };
   }
 
   async update(id: string, userId: string, data: { name?: string }) {
@@ -278,11 +288,12 @@ export class InstancesService {
     ]);
 
     const port = instance.internalPort || 'N/A';
-    const publicHost = getPublicHost();
+    const enriched = enrichInstance(instance);
+    const url = enriched.appUrl || `http://${getPublicHost()}:${port}`;
 
     return {
       message: 'App desplegada exitosamente',
-      url: `http://${publicHost}:${port}`,
+      url,
       internalPort: port,
     };
   }

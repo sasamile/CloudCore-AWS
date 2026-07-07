@@ -1,16 +1,17 @@
 import { Controller, Get, Post, Delete, Param, Body, UseGuards } from '@nestjs/common';
 import { DomainsService } from './domains.service';
 import { JwtAuthGuard, CurrentUser } from '../auth/auth.guard';
-import { IsString, IsNumber, Min, Max } from 'class-validator';
+import { IsString, IsNumber, IsOptional, Min, Max } from 'class-validator';
 
 class CreateDomainDto {
   @IsString()
   domain: string;
 
+  @IsOptional()
   @IsNumber()
   @Min(1)
   @Max(65535)
-  targetPort: number;
+  targetPort?: number;
 
   @IsString()
   instanceId: string;
@@ -24,6 +25,11 @@ export class DomainsController {
   @Get()
   findAll(@CurrentUser() user: { id: string }) {
     return this.domainsService.findAll(user.id);
+  }
+
+  @Get('tunnel-status')
+  getTunnelStatus() {
+    return this.domainsService.getTunnelStatus();
   }
 
   @Post()
