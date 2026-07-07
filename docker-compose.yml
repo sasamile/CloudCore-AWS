@@ -35,7 +35,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - zyncloud-backups:/var/lib/zyncloud/backups
       - zyncloud-storage:/var/lib/zyncloud/storage
-      - ${CLOUDFLARED_CONFIG_PATH:-/var/lib/zyncloud/cloudflared-ingress.yml}:/var/lib/zyncloud/cloudflared-ingress.yml
+      - ${CLOUDFLARED_CONFIG_PATH:-/etc/cloudflared/config.yml}:/etc/cloudflared/config.yml
+      - ${CLOUDFLARED_BIN_HOST:-/usr/bin/cloudflared}:/usr/bin/cloudflared:ro
+      - ${CLOUDFLARE_TUNNEL_CREDENTIALS_DIR:-/home/alfred/.cloudflared}:/root/.cloudflared:ro
       - ./secrets:/run/secrets/zyncloud:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -51,7 +53,12 @@ services:
       BASE_DOMAIN: ${BASE_DOMAIN:-}
       TUNNEL_WEB_HOST: ${TUNNEL_WEB_HOST:-}
       TUNNEL_API_HOST: ${TUNNEL_API_HOST:-}
-      CLOUDFLARED_CONFIG_PATH: /var/lib/zyncloud/cloudflared-ingress.yml
+      CLOUDFLARED_CONFIG_PATH: ${CLOUDFLARED_CONFIG_PATH:-/etc/cloudflared/config.yml}
+      CLOUDFLARE_TUNNEL_ID: ${CLOUDFLARE_TUNNEL_ID:-}
+      CLOUDFLARE_TUNNEL_NAME: ${CLOUDFLARE_TUNNEL_NAME:-}
+      CLOUDFLARE_TUNNEL_CREDENTIALS: ${CLOUDFLARE_TUNNEL_CREDENTIALS:-}
+      CLOUDFLARED_BIN: ${CLOUDFLARED_BIN:-/usr/bin/cloudflared}
+      CLOUDFLARED_RESTART_CMD: ${CLOUDFLARED_RESTART_CMD:-}
       WEB_PORT: ${WEB_PORT:-3000}
       API_PORT: ${API_PORT:-4000}
       UBUNTU_BASE_IMAGE: ${UBUNTU_BASE_IMAGE:-zyncloud/ubuntu-base:latest}

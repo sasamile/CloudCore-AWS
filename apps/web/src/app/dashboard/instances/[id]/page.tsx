@@ -347,8 +347,10 @@ export default function InstanceDetailPage() {
                         <code className="font-mono">https://{instance.suggestedDomain}</code>
                       </p>
                       <p>
-                        Add a CNAME in Cloudflare pointing to your tunnel, or let ZynCloud auto-register
-                        the ingress rule when the instance starts.
+                        ZynCloud registers the tunnel route and DNS automatically when the instance
+                        starts. Each instance name becomes a subdomain under{" "}
+                        <code className="font-mono">{instance.baseDomain || "BASE_DOMAIN"}</code>{" "}
+                        (e.g. <code className="font-mono">tienda.{instance.baseDomain || "example.com"}</code>).
                       </p>
                     </AlertDescription>
                   </Alert>

@@ -159,7 +159,8 @@ export class InstancesService {
 
     await this.dockerService.startContainer(instance.containerId);
     await this.setupSsh(instance.containerId);
-    const updated = await this.refreshNetworking(id, instance.containerId);
+    await this.refreshNetworking(id, instance.containerId);
+    await this.tunnel.syncIngress();
     const withKey = await this.prisma.instance.findUnique({
       where: { id },
       include: { sshKey: { select: { name: true } }, domains: true },
@@ -185,6 +186,7 @@ export class InstancesService {
     await this.dockerService.restartContainer(instance.containerId);
     await this.setupSsh(instance.containerId);
     await this.refreshNetworking(id, instance.containerId);
+    await this.tunnel.syncIngress();
     const withKey = await this.prisma.instance.findUnique({
       where: { id },
       include: { sshKey: { select: { name: true } }, domains: true },

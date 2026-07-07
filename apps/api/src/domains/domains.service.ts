@@ -96,7 +96,7 @@ export class DomainsService {
   }
 
   async getTunnelStatus() {
-    const configPath = process.env.CLOUDFLARED_CONFIG_PATH || '/var/lib/zyncloud/cloudflared-ingress.yml';
+    const configPath = process.env.CLOUDFLARED_CONFIG_PATH || '/etc/cloudflared/config.yml';
     let ingressPreview = '';
     try {
       ingressPreview = await fsp.readFile(configPath, 'utf8');
