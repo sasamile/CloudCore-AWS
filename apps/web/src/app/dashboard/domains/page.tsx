@@ -13,6 +13,8 @@ interface Domain {
   sslEnabled: boolean
   instance: { id: string; name: string }
   createdAt: string
+  routeActive?: boolean
+  clientDns?: { type: string; name: string; target: string } | null
 }
 
 interface Instance {
@@ -73,26 +75,32 @@ export default function DomainsPage() {
     e.preventDefault()
     setLoading(true)
     try {
-      const result = await api.post<Domain & { tunnelSync?: { dnsRegistered: string[]; restarted: boolean } }>(
-        "/domains",
-        { domain: domainName, targetPort, instanceId }
-      )
+      const result = await api.post<
+        Domain & {
+          tunnelSync?: { dnsRegistered: string[]; restarted: boolean; cloudflareSynced: boolean }
+        }
+      >("/domains", { domain: domainName, targetPort, instanceId })
       setShowForm(false)
       setDomainName("")
       setTargetPort(3000)
       setInstanceId("")
       fetchDomains()
 
-      const dns = result.tunnelSync?.dnsRegistered ?? []
-      if (dns.length > 0) {
+      const sync = result.tunnelSync
+      if (sync?.cloudflareSynced) {
         toast({
-          title: "Dominio listo",
-          description: `DNS registrado: ${dns.join(", ")}. Abre https://${domainName}`,
+          title: "Dominio publicado",
+          description: `Ruta enviada a Cloudflare. En 1–2 min abre https://${domainName}`,
+        })
+      } else if (sync?.restarted) {
+        toast({
+          title: "Dominio guardado",
+          description: "Ruta actualizada y túnel reiniciado.",
         })
       } else if (tunnel?.mode === "tunnel") {
         toast({
           title: "Dominio guardado",
-          description: `Ruta del túnel actualizada. Si el DNS no se creó solo, agrega CNAME en Cloudflare.`,
+          description: `CNAME en tu DNS → ${tunnel.cnameTarget ?? "el túnel"}. Si sigue en 404, el admin debe activar CLOUDFLARE_API_TOKEN.`,
         })
       }
     } catch {
@@ -167,6 +175,10 @@ export default function DomainsPage() {
                       Target: <strong className="break-all">{tunnel.cnameTarget ?? tunnel.dnsExample.target}</strong>
                     </div>
                     <p className="font-sans text-muted-foreground">{tunnel.dnsExample.note}</p>
+                    <p className="font-sans text-amber-600 font-medium text-xs mt-1">
+                      Si tienes &quot;Tunnel → zyncloud&quot; en tu Cloudflare, bórralo. Ese túnel es de otra
+                      cuenta y da error 404.
+                    </p>
                   </div>
                 )}
               </div>
@@ -317,6 +329,7 @@ export default function DomainsPage() {
                     <th className="h-10 px-4 text-left font-medium text-muted-foreground">Domain</th>
                     <th className="h-10 px-4 text-left font-medium text-muted-foreground">Instance</th>
                     <th className="h-10 px-4 text-left font-medium text-muted-foreground">Port</th>
+                    <th className="h-10 px-4 text-left font-medium text-muted-foreground">Ruta</th>
                     <th className="h-10 px-4 text-left font-medium text-muted-foreground">SSL</th>
                     <th className="h-10 px-4 text-left font-medium text-muted-foreground">Created</th>
                     <th className="h-10 px-4 text-right font-medium text-muted-foreground">Actions</th>
@@ -338,6 +351,17 @@ export default function DomainsPage() {
                       </td>
                       <td className="p-4 text-xs">{d.instance.name}</td>
                       <td className="p-4 font-mono text-xs text-muted-foreground">{d.targetPort}</td>
+                      <td className="p-4">
+                        {d.routeActive === undefined ? (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        ) : d.routeActive ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-green-600">
+                            <CheckCircle2 className="w-3 h-3" /> Servidor OK
+                          </span>
+                        ) : (
+                          <span className="text-xs text-amber-600">Pendiente</span>
+                        )}
+                      </td>
                       <td className="p-4">
                         <span
                           className={`inline-flex items-center gap-1 text-xs font-medium ${d.sslEnabled ? "text-green-600" : "text-muted-foreground"}`}

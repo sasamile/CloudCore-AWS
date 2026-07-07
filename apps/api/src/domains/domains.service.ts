@@ -19,11 +19,35 @@ export class DomainsService {
   ) {}
 
   async findAll(userId: string) {
-    return this.prisma.domain.findMany({
+    const domains = await this.prisma.domain.findMany({
       where: { userId },
       include: { instance: { select: { id: true, name: true, internalPort: true } } },
       orderBy: { createdAt: 'desc' },
     });
+
+    if (!this.tunnel.isTunnelMode()) return domains;
+
+    const configPath = process.env.CLOUDFLARED_CONFIG_PATH || '/etc/cloudflared/config.yml';
+    let ingress = '';
+    try {
+      ingress = await fsp.readFile(configPath, 'utf8');
+    } catch {
+      ingress = '';
+    }
+
+    const cnameTarget = process.env.CLOUDFLARE_TUNNEL_ID
+      ? `${process.env.CLOUDFLARE_TUNNEL_ID}.cfargotunnel.com`
+      : null;
+
+    return domains.map((d) => ({
+      ...d,
+      routeActive:
+        ingress.includes(`hostname: ${d.domain}`) ||
+        ingress.includes(`"${d.domain}"`),
+      clientDns: cnameTarget
+        ? { type: 'CNAME', name: d.domain.split('.')[0], target: cnameTarget }
+        : null,
+    }));
   }
 
   async create(userId: string, data: { domain: string; targetPort?: number; instanceId: string }) {
@@ -110,9 +134,15 @@ export class DomainsService {
     const cnameTarget = tunnelId ? `${tunnelId}.cfargotunnel.com` : null;
     const autoDns = Boolean(tunnelName);
     const autoReload = Boolean(
-      process.env.CLOUDFLARED_RESTART_CMD ||
+      process.env.CLOUDFLARE_API_TOKEN ||
+        process.env.CLOUDFLARED_RESTART_CMD ||
         process.env.HOST_CONSOLE_ENABLED === 'true' ||
         process.env.TUNNEL_USE_SSH === 'true',
+    );
+    const cloudflareApi = Boolean(
+      process.env.CLOUDFLARE_API_TOKEN &&
+        process.env.CLOUDFLARE_ACCOUNT_ID &&
+        process.env.CLOUDFLARE_TUNNEL_ID,
     );
 
     return {
@@ -124,17 +154,24 @@ export class DomainsService {
       cnameTarget,
       autoDns,
       autoReload,
-      clientSteps: [
-        'ZynCloud → Domains → agrega tu dominio (ej. prueba.vekino.site) y elige la instancia.',
-        'En TU Cloudflare/Hostinger (cuenta del cliente): CNAME del subdominio al túnel de ZynCloud (abajo).',
-        'Espera 1–5 min y abre https://tu-dominio.',
-      ],
+      cloudflareApi,
+      clientSteps: cloudflareApi
+        ? [
+            'ZynCloud → Domains → agrega tu dominio (ej. prueba.vekino.site) y elige la instancia.',
+            'En TU Cloudflare: CNAME prueba → el target que muestra abajo (solo una vez por dominio).',
+            'ZynCloud publica la ruta al túnel automáticamente. Espera 1–2 min.',
+          ]
+        : [
+            'ZynCloud → Domains → agrega tu dominio (ej. prueba.vekino.site) y elige la instancia.',
+            'En TU Cloudflare/Hostinger: CNAME del subdominio al túnel de ZynCloud (abajo).',
+            'Espera 1–5 min y abre https://tu-dominio.',
+          ],
       dnsExample: cnameTarget
         ? {
             type: 'CNAME',
             name: 'prueba',
             target: cnameTarget,
-            note: 'El cliente NO crea túnel. Solo apunta su dominio al túnel de ZynCloud. No uses registro A.',
+            note: 'NO uses tipo Tunnel en tu cuenta. Borra "Tunnel → zyncloud" y crea CNAME con este target.',
           }
         : null,
     };

@@ -15,6 +15,8 @@ export interface SyncIngressResult {
   routeCount: number;
   dnsRegistered: string[];
   restarted: boolean;
+  cloudflareSynced: boolean;
+  hostnames: string[];
 }
 
 @Injectable()
@@ -186,7 +188,49 @@ export class TunnelService implements OnModuleInit {
     return this.runCommand(cmd, `DNS registered: ${hostname}`);
   }
 
-  private registerDnsForHostnames(hostnames: IngressRoute[]): string[] {
+  private async pushIngressToCloudflare(ingress: IngressRoute[]): Promise<boolean> {
+    const token = process.env.CLOUDFLARE_API_TOKEN;
+    const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+    const tunnelId = process.env.CLOUDFLARE_TUNNEL_ID;
+
+    if (!token || !accountId || !tunnelId) {
+      this.logger.debug('Cloudflare API sync skipped (set CLOUDFLARE_API_TOKEN + ACCOUNT_ID + TUNNEL_ID)');
+      return false;
+    }
+
+    const cfIngress = ingress.map((r) =>
+      r.hostname ? { hostname: r.hostname, service: r.service } : { service: r.service },
+    );
+
+    try {
+      const res = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${accountId}/cfd_tunnel/${tunnelId}/configurations`,
+        {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ config: { ingress: cfIngress } }),
+        },
+      );
+
+      const body = (await res.json()) as { success?: boolean; errors?: { message: string }[] };
+      if (!res.ok || !body.success) {
+        const msg = body.errors?.map((e) => e.message).join('; ') || res.statusText;
+        this.logger.warn(`Cloudflare tunnel API failed: ${msg}`);
+        return false;
+      }
+
+      this.logger.log(`Cloudflare tunnel API updated (${cfIngress.length - 1} routes)`);
+      return true;
+    } catch (error) {
+      this.logger.warn(`Cloudflare tunnel API error: ${(error as Error).message}`);
+      return false;
+    }
+  }
+
+  private registerDnsForHostnames(ingress: IngressRoute[]): string[] {
     const tunnelRef = this.getTunnelRef();
     if (!tunnelRef) return [];
 
@@ -195,7 +239,7 @@ export class TunnelService implements OnModuleInit {
     const skip = new Set([webHost, apiHost].filter(Boolean) as string[]);
 
     const registered: string[] = [];
-    for (const hostname of this.collectHostnames(hostnames)) {
+    for (const hostname of this.collectHostnames(ingress)) {
       if (skip.has(hostname)) continue;
       if (this.registerDns(hostname)) {
         registered.push(hostname);
@@ -206,17 +250,32 @@ export class TunnelService implements OnModuleInit {
 
   async syncIngress(): Promise<SyncIngressResult> {
     if (!this.isTunnelMode()) {
-      return { configPath: null, routeCount: 0, dnsRegistered: [], restarted: false };
+      return {
+        configPath: null,
+        routeCount: 0,
+        dnsRegistered: [],
+        restarted: false,
+        cloudflareSynced: false,
+        hostnames: [],
+      };
     }
 
     const ingress = await this.buildIngressRules();
-    const configPath = await this.writeLocalConfig(ingress);
-    const dnsRegistered = this.registerDnsForHostnames(ingress);
-    const restarted = configPath ? this.restartCloudflared() : false;
+    const hostnames = this.collectHostnames(ingress);
 
-    if (dnsRegistered.length === 0 && this.getTunnelRef()) {
+    const cloudflareSynced = await this.pushIngressToCloudflare(ingress);
+    const configPath = await this.writeLocalConfig(ingress);
+
+    const dnsRegistered = cloudflareSynced
+      ? []
+      : this.registerDnsForHostnames(ingress);
+
+    const restarted =
+      !cloudflareSynced && configPath ? this.restartCloudflared() : false;
+
+    if (!cloudflareSynced && dnsRegistered.length === 0 && this.getTunnelRef()) {
       this.logger.warn(
-        'DNS auto-register failed. Ensure CLOUDFLARE_TUNNEL_NAME is set and cloudflared credentials are available (or SSH to host).',
+        'Tunnel sync fallback: set CLOUDFLARE_API_TOKEN for automatic routes (no SSH needed).',
       );
     }
 
@@ -225,6 +284,8 @@ export class TunnelService implements OnModuleInit {
       routeCount: ingress.length - 1,
       dnsRegistered,
       restarted,
+      cloudflareSynced,
+      hostnames,
     };
   }
 }
