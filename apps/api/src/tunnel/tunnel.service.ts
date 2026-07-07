@@ -131,9 +131,27 @@ export class TunnelService implements OnModuleInit {
       .filter((h): h is string => Boolean(h));
   }
 
-  private runHostCommand(command: string, label: string): boolean {
+  private buildSshExec(remoteCommand: string): string | null {
+    const user = process.env.HOST_CONSOLE_SSH_USER;
+    if (!user) return null;
+
+    const useSsh =
+      process.env.TUNNEL_USE_SSH === 'true' || process.env.HOST_CONSOLE_ENABLED === 'true';
+    if (!useSsh) return null;
+
+    const keyPath = process.env.HOST_CONSOLE_SSH_KEY_PATH || '/run/secrets/zyncloud/host_console_key';
+    const host = process.env.HOST_CONSOLE_SSH_HOST || 'host.docker.internal';
+    const port = process.env.HOST_CONSOLE_SSH_PORT || '22';
+    const portFlag = port !== '22' ? `-p ${port} ` : '';
+    const escaped = remoteCommand.replace(/'/g, `'\\''`);
+    return `ssh -i ${keyPath} -o StrictHostKeyChecking=no -o BatchMode=yes -o IdentitiesOnly=yes ${portFlag}${user}@${host} '${escaped}'`;
+  }
+
+  private runCommand(command: string, label: string): boolean {
+    const sshWrapped = this.buildSshExec(command);
+    const cmd = sshWrapped ?? command;
     try {
-      execSync(command, { stdio: 'pipe', timeout: 30_000 });
+      execSync(cmd, { stdio: 'pipe', timeout: 60_000 });
       this.logger.log(label);
       return true;
     } catch (error) {
@@ -142,32 +160,19 @@ export class TunnelService implements OnModuleInit {
     }
   }
 
-  private buildRestartCommand(): string | null {
+  private buildRestartCommand(): string {
     if (process.env.CLOUDFLARED_RESTART_CMD) {
       return process.env.CLOUDFLARED_RESTART_CMD;
     }
-
-    if (process.env.HOST_CONSOLE_ENABLED !== 'true') return null;
-
-    const keyPath = process.env.HOST_CONSOLE_SSH_KEY_PATH || '/run/secrets/zyncloud/host_console_key';
-    const host = process.env.HOST_CONSOLE_SSH_HOST || 'host.docker.internal';
-    const user = process.env.HOST_CONSOLE_SSH_USER;
-    if (!user) return null;
-
-    const port = process.env.HOST_CONSOLE_SSH_PORT || '22';
-    const portFlag = port !== '22' ? `-p ${port} ` : '';
-    return `ssh -i ${keyPath} -o StrictHostKeyChecking=no -o BatchMode=yes ${portFlag}${user}@${host} "sudo systemctl restart cloudflared"`;
+    return 'sudo systemctl restart cloudflared';
   }
 
   private restartCloudflared(): boolean {
-    const cmd = this.buildRestartCommand();
-    if (!cmd) {
-      this.logger.warn(
-        'Set CLOUDFLARED_RESTART_CMD or HOST_CONSOLE SSH to auto-restart cloudflared after route changes',
-      );
-      return false;
-    }
-    return this.runHostCommand(cmd, 'cloudflared restarted');
+    return this.runCommand(this.buildRestartCommand(), 'cloudflared restarted');
+  }
+
+  private getCloudflaredBin(): string {
+    return process.env.CLOUDFLARED_BIN || 'cloudflared';
   }
 
   private registerDns(hostname: string): boolean {
@@ -177,9 +182,8 @@ export class TunnelService implements OnModuleInit {
       return false;
     }
 
-    const cloudflaredBin = process.env.CLOUDFLARED_BIN || 'cloudflared';
-    const cmd = `${cloudflaredBin} tunnel route dns ${tunnelRef} ${hostname}`;
-    return this.runHostCommand(cmd, `DNS registered: ${hostname}`);
+    const cmd = `${this.getCloudflaredBin()} tunnel route dns ${tunnelRef} ${hostname}`;
+    return this.runCommand(cmd, `DNS registered: ${hostname}`);
   }
 
   private registerDnsForHostnames(hostnames: IngressRoute[]): string[] {
@@ -209,6 +213,12 @@ export class TunnelService implements OnModuleInit {
     const configPath = await this.writeLocalConfig(ingress);
     const dnsRegistered = this.registerDnsForHostnames(ingress);
     const restarted = configPath ? this.restartCloudflared() : false;
+
+    if (dnsRegistered.length === 0 && this.getTunnelRef()) {
+      this.logger.warn(
+        'DNS auto-register failed. Ensure CLOUDFLARE_TUNNEL_NAME is set and cloudflared credentials are available (or SSH to host).',
+      );
+    }
 
     return {
       configPath,

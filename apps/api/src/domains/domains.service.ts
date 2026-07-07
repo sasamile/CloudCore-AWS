@@ -47,7 +47,8 @@ export class DomainsService {
     });
 
     if (this.tunnel.isTunnelMode()) {
-      await this.tunnel.syncIngress();
+      const sync = await this.tunnel.syncIngress();
+      return { ...domain, tunnelSync: sync };
     } else {
       await this.generateNginxConfig(domain.id, data.domain, targetPort);
     }
@@ -103,11 +104,39 @@ export class DomainsService {
     } catch {
       ingressPreview = '';
     }
+
+    const tunnelName = process.env.CLOUDFLARE_TUNNEL_NAME || null;
+    const tunnelId = process.env.CLOUDFLARE_TUNNEL_ID || null;
+    const cnameTarget = tunnelId ? `${tunnelId}.cfargotunnel.com` : null;
+    const autoDns = Boolean(tunnelName);
+    const autoReload = Boolean(
+      process.env.CLOUDFLARED_RESTART_CMD ||
+        process.env.HOST_CONSOLE_ENABLED === 'true' ||
+        process.env.TUNNEL_USE_SSH === 'true',
+    );
+
     return {
       mode: getRoutingMode(),
       baseDomain: process.env.BASE_DOMAIN || null,
       configPath,
       ingressPreview,
+      tunnelName,
+      cnameTarget,
+      autoDns,
+      autoReload,
+      clientSteps: [
+        'ZynCloud → Domains → agrega tu dominio (ej. prueba.vekino.site) y elige la instancia.',
+        'En TU Cloudflare/Hostinger (cuenta del cliente): CNAME del subdominio al túnel de ZynCloud (abajo).',
+        'Espera 1–5 min y abre https://tu-dominio.',
+      ],
+      dnsExample: cnameTarget
+        ? {
+            type: 'CNAME',
+            name: 'prueba',
+            target: cnameTarget,
+            note: 'El cliente NO crea túnel. Solo apunta su dominio al túnel de ZynCloud. No uses registro A.',
+          }
+        : null,
     };
   }
 

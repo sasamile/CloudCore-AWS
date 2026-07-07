@@ -69,6 +69,7 @@ services:
       HOST_CONSOLE_SSH_USER: ${HOST_CONSOLE_SSH_USER:-}
       HOST_CONSOLE_SSH_KEY_PATH: /run/secrets/zyncloud/host_console_key
       HOST_CONSOLE_LABEL: ${HOST_CONSOLE_LABEL:-ZynCloud Server}
+      TUNNEL_USE_SSH: ${TUNNEL_USE_SSH:-true}
     restart: unless-stopped
 
 volumes:
