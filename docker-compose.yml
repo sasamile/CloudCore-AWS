@@ -36,7 +36,7 @@ services:
       - zyncloud-backups:/var/lib/zyncloud/backups
       - zyncloud-storage:/var/lib/zyncloud/storage
       - ${CLOUDFLARED_CONFIG_PATH:-/var/lib/zyncloud/cloudflared-ingress.yml}:/var/lib/zyncloud/cloudflared-ingress.yml
-      - ${HOST_CONSOLE_SSH_KEY_HOST_PATH:-./secrets/host_console_key}:/run/secrets/host_console_key:ro
+      - ./secrets:/run/secrets/zyncloud:ro
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-zyncloud}:${POSTGRES_PASSWORD:-zyncloud}@db:5432/${POSTGRES_DB:-zyncloud}
@@ -58,7 +58,7 @@ services:
       HOST_CONSOLE_SSH_HOST: ${HOST_CONSOLE_SSH_HOST:-172.17.0.1}
       HOST_CONSOLE_SSH_PORT: ${HOST_CONSOLE_SSH_PORT:-22}
       HOST_CONSOLE_SSH_USER: ${HOST_CONSOLE_SSH_USER:-}
-      HOST_CONSOLE_SSH_KEY_PATH: /run/secrets/host_console_key
+      HOST_CONSOLE_SSH_KEY_PATH: /run/secrets/zyncloud/host_console_key
       HOST_CONSOLE_LABEL: ${HOST_CONSOLE_LABEL:-ZynCloud Server}
     restart: unless-stopped
 

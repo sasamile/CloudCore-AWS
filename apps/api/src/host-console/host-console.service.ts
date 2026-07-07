@@ -94,7 +94,14 @@ export class HostConsoleService {
         try {
           config.privateKey = readFileSync(keyPath);
         } catch (e) {
-          reject(new Error(`Cannot read SSH key at ${keyPath}`));
+          const err = e as NodeJS.ErrnoException;
+          const hint =
+            err.code === 'EISDIR'
+              ? ' (Docker montó un directorio; ejecuta: docker compose down && docker compose up -d)'
+              : err.code === 'ENOENT'
+                ? ' (la llave no está montada; verifica ./secrets/host_console_key y reinicia el contenedor)'
+                : '';
+          reject(new Error(`Cannot read SSH key at ${keyPath}${hint}`));
           return;
         }
       } else if (process.env.HOST_CONSOLE_SSH_PASSWORD) {
