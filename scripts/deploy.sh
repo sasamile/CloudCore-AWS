@@ -10,6 +10,22 @@ if [[ ! -f .env ]]; then
   exit 1
 fi
 
+if grep -qE '^CLOUDFLARE_API_TOKEN[^=]' .env 2>/dev/null; then
+  echo "ERROR: En .env falta '=' en CLOUDFLARE_API_TOKEN."
+  echo "  Debe ser: CLOUDFLARE_API_TOKEN=cfat_tu_token"
+  exit 1
+fi
+
+if grep -qE '^CLOUDFLARE_ACCOUNT_ID[^=]' .env 2>/dev/null; then
+  echo "ERROR: En .env falta '=' en CLOUDFLARE_ACCOUNT_ID."
+  exit 1
+fi
+
+if grep -qE '^[A-Z_]+=[^"'\''\s].*\s' .env 2>/dev/null; then
+  echo "ERROR: En .env hay valores con espacios sin comillas (ej. HOST_CONSOLE_LABEL=\"ZynCloud Server\")."
+  exit 1
+fi
+
 set -a
 # shellcheck disable=SC1091
 source .env
