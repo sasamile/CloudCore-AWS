@@ -16,6 +16,7 @@ services:
       start_period: 10s
 
   zyncloud:
+    image: ${ZYNCLOUD_IMAGE:-zyncloud/app:local}
     build:
       context: .
       dockerfile: Dockerfile.app

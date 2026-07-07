@@ -54,28 +54,54 @@ sudo usermod -aG docker $USER
 
 ```bash
 mkdir -p ~/zyncloud && cd ~/zyncloud
-git clone https://github.com/TU_USUARIO/zyncloud.git .
+git clone https://github.com/sasamile/CloudCore-AWS.git .
 cp .env.example .env
 nano .env   # Pon la IP de la PC y contraseñas
 ```
 
-### 3. Registrar GitHub Actions runner
+### 3. Variables en GitHub (para construir el frontend con tu IP)
+
+En GitHub: **Settings → Secrets and variables → Actions → Variables** (pestaña Variables).
+
+Crea las mismas URLs que en tu `.env` del servidor:
+
+| Variable | Ejemplo |
+|----------|---------|
+| `NEXT_PUBLIC_API_URL` | `http://192.168.1.100:4000` |
+| `NEXT_PUBLIC_PUBLIC_HOST` | `192.168.1.100` |
+
+GitHub Actions construye la imagen con esos valores; el servidor solo hace **pull**, no compila.
+
+### 4. Registrar GitHub Actions runner
 
 En GitHub: **Settings → Actions → Runners → New self-hosted runner** (Linux).
 
-Ejecuta los comandos que te da GitHub en la PC vieja. El runner debe quedar en la **misma carpeta del repo** (o configura el workflow para hacer checkout ahí).
+Ejecuta los comandos que te da GitHub en la PC vieja, dentro de `~/zyncloud`.
 
-### 4. Primer deploy manual
+### 5. Primer deploy
+
+Tras el primer `push` a `main`, GitHub publica las imágenes en GHCR. En el servidor:
 
 ```bash
+cd ~/zyncloud
+git pull   # solo esta vez, para obtener scripts actualizados
 bash scripts/deploy.sh
 ```
 
+O deja que el runner lo haga solo si ya está registrado.
+
 Abre `http://IP-DE-LA-PC:3000`.
 
-### 5. Deploy automático
+### 6. Deploy automático (sin git pull manual)
 
-Cada `push` a `main` dispara `.github/workflows/deploy.yml` en el runner de la PC vieja.
+Cada `push` a `main`:
+
+1. GitHub **construye** la app y sube imágenes a `ghcr.io`
+2. El runner en la PC vieja **descarga** las imágenes y ejecuta `docker compose up`
+
+No necesitas `git pull` en el servidor para actualizar la app (el runner hace checkout solo de scripts/compose).
+
+> Si cambias `NEXT_PUBLIC_*`, actualiza las **Variables** en GitHub y vuelve a hacer push.
 
 ## Variables de entorno
 
@@ -88,8 +114,10 @@ Ver `.env.example`. Lo más importante:
 | `PUBLIC_HOST` | IP/hostname de la PC (para URLs de instancias) |
 | `FRONTEND_URL` | URL del panel web |
 | `NEXT_PUBLIC_API_URL` | URL de la API (se embebe en el build del frontend) |
+| `ZYNCLOUD_IMAGE` | Imagen de la app en GHCR (deploy automático) |
+| `UBUNTU_BASE_IMAGE` | Imagen base para instancias en GHCR |
 
-> **Nota:** Si cambias `NEXT_PUBLIC_*`, hay que reconstruir: `docker compose build --no-cache && docker compose up -d`.
+> **Nota:** Si cambias `NEXT_PUBLIC_*`, actualiza las **Variables** en GitHub (Settings → Actions → Variables) y haz push a `main` para reconstruir la imagen.
 
 ## Desarrollo local
 

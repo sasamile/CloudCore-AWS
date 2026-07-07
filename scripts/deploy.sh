@@ -15,12 +15,19 @@ set -a
 source .env
 set +a
 
-echo "==> Construyendo imagen base para instancias Ubuntu..."
-docker build -t zyncloud/ubuntu-base:latest docker/ubuntu-base
+ZYNCLOUD_IMAGE="${ZYNCLOUD_IMAGE:-ghcr.io/sasamile/cloudcore-aws/app:latest}"
+UBUNTU_BASE_IMAGE="${UBUNTU_BASE_IMAGE:-ghcr.io/sasamile/cloudcore-aws/ubuntu-base:latest}"
+export ZYNCLOUD_IMAGE
 
-echo "==> Construyendo y levantando ZynCloud (app + postgres)..."
-docker compose build
-docker compose up -d
+echo "==> Descargando imágenes desde GHCR..."
+docker pull "$ZYNCLOUD_IMAGE"
+docker pull "$UBUNTU_BASE_IMAGE"
+
+echo "==> Etiquetando imagen base para instancias Ubuntu..."
+docker tag "$UBUNTU_BASE_IMAGE" zyncloud/ubuntu-base:latest
+
+echo "==> Levantando ZynCloud (app + postgres)..."
+docker compose up -d --no-build --pull always
 
 echo "==> Estado de los contenedores:"
 docker compose ps
