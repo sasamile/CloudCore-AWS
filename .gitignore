@@ -3,6 +3,7 @@ node_modules
 dist
 apps/api/src/generated
 .turbo
+**/*.tsbuildinfo
 *.db
 *.db-journal
 .env
