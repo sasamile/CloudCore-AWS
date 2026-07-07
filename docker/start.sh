@@ -6,7 +6,15 @@ echo "Applying database migrations..."
 npx prisma migrate deploy
 
 echo "Starting ZynCloud API..."
-node dist/main.js &
+if [ -f dist/main.js ]; then
+  node dist/main.js &
+elif [ -f dist/src/main.js ]; then
+  node dist/src/main.js &
+else
+  echo "ERROR: No se encontró el build de la API en dist/main.js"
+  ls -la dist/ || true
+  exit 1
+fi
 API_PID=$!
 
 cd /app/apps/web
