@@ -20,7 +20,7 @@ ARG NEXT_PUBLIC_PUBLIC_HOST=localhost
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_PUBLIC_HOST=$NEXT_PUBLIC_PUBLIC_HOST
 
-RUN cd apps/api && npx prisma generate
+RUN cd apps/api && DATABASE_URL=postgresql://zyncloud:zyncloud@localhost:5432/zyncloud npx prisma generate
 RUN npm run build --workspace=@zyncloud/api
 RUN npm run build --workspace=@zyncloud/web
 
