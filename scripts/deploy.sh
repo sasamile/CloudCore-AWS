@@ -21,10 +21,19 @@ if grep -qE '^CLOUDFLARE_ACCOUNT_ID[^=]' .env 2>/dev/null; then
   exit 1
 fi
 
-if grep -qE '^[A-Z_]+=[^"'\''\s].*\s' .env 2>/dev/null; then
-  echo "ERROR: En .env hay valores con espacios sin comillas (ej. HOST_CONSOLE_LABEL=\"ZynCloud Server\")."
-  exit 1
-fi
+# Valores con espacios deben ir entre comillas o bash los interpreta como comandos al hacer source.
+while IFS= read -r line || [[ -n "$line" ]]; do
+  [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+  if [[ "$line" =~ ^([A-Z_][A-Z0-9_]*)=(.*)$ ]]; then
+    val="${BASH_REMATCH[2]}"
+    if [[ "$val" =~ [[:space:]] && ! "$val" =~ ^\".*\"$ && ! "$val" =~ ^\'.*\'$ ]]; then
+      echo "ERROR: En .env hay un valor con espacios sin comillas:"
+      echo "  $line"
+      echo "  Usa comillas dobles, ej.: ${BASH_REMATCH[1]}=\"valor con espacios\""
+      exit 1
+    fi
+  fi
+done < .env
 
 set -a
 # shellcheck disable=SC1091

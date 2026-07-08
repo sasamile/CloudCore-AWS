@@ -1,159 +1,299 @@
-# ZynCloud
+<p align="center">
+  <img src="apps/web/public/logo.svg" alt="ZynCloud" width="64" height="64" />
+</p>
 
-Panel web para gestionar servidores Docker (mini-AWS personal).
+<h1 align="center">ZynCloud</h1>
 
-## Arquitectura de despliegue
+<p align="center">
+  <strong>Panel de gestión cloud self-hosted — tu mini-AWS personal sobre Docker.</strong><br/>
+  Instancias, dominios, almacenamiento S3, consola web y despliegues desde GitHub en un solo lugar.
+</p>
+
+<p align="center">
+  <a href="#características">Características</a> ·
+  <a href="#capturas">Capturas</a> ·
+  <a href="#arquitectura">Arquitectura</a> ·
+  <a href="#stack">Stack</a> ·
+  <a href="#despliegue">Despliegue</a> ·
+  <a href="#desarrollo-local">Desarrollo</a>
+</p>
+
+---
+
+## ¿Qué es ZynCloud?
+
+ZynCloud es una plataforma de gestión de infraestructura que corre en tu propio servidor. Permite crear y administrar **instancias Ubuntu en Docker**, asignar **dominios personalizados** vía Cloudflare Tunnel, gestionar **almacenamiento de objetos estilo S3**, hacer **snapshots**, conectar una **consola web interactiva** y **desplegar aplicaciones desde GitHub** — todo desde un dashboard moderno inspirado en AWS Console y Vercel.
+
+Ideal para:
+
+- Desarrolladores que quieren su propio PaaS en casa o en un VPS
+- Equipos pequeños que necesitan gestionar múltiples apps sin depender de servicios cloud costosos
+- Laboratorios de aprendizaje de infraestructura, Docker y DevOps
+
+---
+
+## Características
+
+| Módulo | Descripción |
+|--------|-------------|
+| **Compute** | Crear, iniciar, detener y eliminar instancias Ubuntu con límites de CPU/RAM configurables |
+| **Consola web** | Terminal interactiva en el navegador (xterm.js) con setup rápido de herramientas |
+| **Asistente IA** | Chat integrado para ayudar con despliegues, Docker, npm, Git y configuración |
+| **Deploy** | Conecta GitHub y despliega repos automáticamente en una instancia (estilo Vercel) |
+| **Dominios** | Asigna subdominios a instancias con Cloudflare Tunnel y SSL automático |
+| **Object Storage** | Buckets y objetos compatibles con API S3, con documentación integrada |
+| **Snapshots** | Backups de instancias para restauración rápida |
+| **SSH Keys** | Gestión de pares de claves para acceso a instancias |
+| **Server Console** | Terminal web del host físico (opcional, vía SSH) |
+| **Auth** | Login con email/contraseña y Google OAuth |
+
+---
+
+## Capturas
+
+### Inicio de sesión
+
+Autenticación con credenciales o Google OAuth. Interfaz limpia con soporte de tema claro/oscuro.
+
+<p align="center">
+  <img src="apps/web/public/md/login.png" alt="Pantalla de login de ZynCloud" width="800" />
+</p>
+
+---
+
+### Dashboard
+
+Vista general de la infraestructura: instancias activas, uso de CPU/RAM, dominios, buckets y snapshots. Gráficos en tiempo real de los últimos 5 minutos.
+
+<p align="center">
+  <img src="apps/web/public/md/dashboard.png" alt="Dashboard principal de ZynCloud" width="800" />
+</p>
+
+---
+
+### Instancias
+
+Gestión completa de instancias: estado, recursos, dirección pública, puerto y acciones (conectar, iniciar, detener, eliminar). Diseño responsive con vista de tarjetas en móvil.
+
+<p align="center">
+  <img src="apps/web/public/md/instancias.png" alt="Lista de instancias" width="800" />
+</p>
+
+---
+
+### Consola web + Asistente IA
+
+Terminal en el navegador conectada a la instancia, panel de **setup rápido** (Git, Node.js, Python, Docker…) y **asistente de despliegue con IA** para resolver errores y guiar la configuración.
+
+<p align="center">
+  <img src="apps/web/public/md/consola.png" alt="Consola web con asistente IA" width="800" />
+</p>
+
+---
+
+### Despliegue desde GitHub
+
+Conecta tu cuenta de GitHub, selecciona un repositorio y despliega en una instancia con un flujo similar a Vercel.
+
+<p align="center">
+  <img src="apps/web/public/md/deploy-vercel.png" alt="Despliegue desde GitHub" width="800" />
+</p>
+
+---
+
+### Object Storage (S3)
+
+Almacenamiento de objetos con buckets, subida de archivos y API documentada. Compatible con clientes S3 estándar.
+
+<p align="center">
+  <img src="apps/web/public/md/s3.png" alt="Object Storage estilo S3" width="800" />
+</p>
+
+---
+
+## Arquitectura
 
 ```mermaid
-flowchart LR
-  subgraph host [PC vieja]
-    GH[GitHub Actions runner]
-    DC[Docker Compose]
-    APP[zyncloud app]
-    DB[(PostgreSQL)]
-    VOL[(zyncloud-db-data)]
-    SOCK[/var/run/docker.sock/]
-    GH --> DC
-    DC --> APP
-    DC --> DB
-    DB --> VOL
-    APP --> DB
-    APP --> SOCK
+flowchart TB
+  subgraph browser [Navegador]
+    WEB[Next.js Dashboard]
   end
-  Browser --> APP
+
+  subgraph server [Servidor / PC]
+    subgraph compose [Docker Compose]
+      APP[ZynCloud App<br/>NestJS + Next.js]
+      DB[(PostgreSQL 16)]
+    end
+
+    SOCK[/var/run/docker.sock/]
+    CF[Cloudflared Tunnel]
+    STORAGE[(Volúmenes<br/>DB · Backups · S3)]
+  end
+
+  subgraph instances [Instancias cliente]
+    I1[Ubuntu Container 1]
+    I2[Ubuntu Container 2]
+    IN[Ubuntu Container N]
+  end
+
+  WEB -->|HTTPS| CF
+  CF --> APP
+  APP --> DB
+  APP --> STORAGE
+  APP -->|Docker API| SOCK
+  SOCK --> I1
+  SOCK --> I2
+  SOCK --> IN
 ```
 
-- **App** (`zyncloud`): API NestJS + frontend Next.js. Se reconstruye en cada deploy.
-- **DB** (`db`): PostgreSQL 16 en contenedor aparte. Los datos viven en el volumen `zyncloud-db-data` y **persisten** aunque actualices la app.
-- **Instancias**: contenedores Ubuntu creados por la app vía Docker socket.
+| Componente | Rol |
+|------------|-----|
+| **App** (`zyncloud`) | API NestJS + frontend Next.js empaquetados en una sola imagen |
+| **DB** (`db`) | PostgreSQL 16; datos persistentes en volumen `zyncloud-db-data` |
+| **Instancias** | Contenedores Ubuntu creados dinámicamente vía Docker socket |
+| **Cloudflare Tunnel** | Expone el panel y las apps de clientes con dominios propios y SSL |
+| **GHCR** | GitHub Container Registry — imágenes construidas por CI y descargadas en el servidor |
 
-## Subir a GitHub
+---
 
-```bash
-git init
-git add .
-git commit -m "Initial commit: ZynCloud con deploy Docker"
-git branch -M main
-git remote add origin https://github.com/TU_USUARIO/zyncloud.git
-git push -u origin main
+## Stack
+
+| Capa | Tecnología |
+|------|------------|
+| Frontend | Next.js 14, React 18, Tailwind CSS, shadcn/ui, Recharts |
+| Terminal | xterm.js + WebSocket |
+| Backend | NestJS, Prisma, PostgreSQL |
+| Infra | Docker, Docker Compose, Cloudflare Tunnel |
+| CI/CD | GitHub Actions → GHCR → self-hosted runner |
+| IA | Groq, Gemini, Kimi, Anthropic, OpenAI (configurable) |
+| Auth | JWT, Google OAuth, GitHub OAuth |
+
+---
+
+## Estructura del repositorio
+
+```
+zyncloud/
+├── apps/
+│   ├── api/          # API NestJS + Prisma
+│   └── web/          # Dashboard Next.js
+├── docker/
+│   └── ubuntu-base/  # Imagen base para instancias
+├── scripts/
+│   └── deploy.sh     # Script de deploy en el servidor
+├── .github/workflows/
+│   └── deploy.yml    # CI: build → GHCR → deploy
+├── docker-compose.yml
+├── Dockerfile.app
+└── .env.example
 ```
 
-## Configurar la PC vieja (self-hosted runner)
+---
 
-Requisitos: Linux con Docker y Docker Compose v2.
+## Despliegue
 
-### 1. Instalar Docker
+### Requisitos del servidor
 
-```bash
-curl -fsSL https://get.docker.com | sh
-sudo usermod -aG docker $USER
-# Cierra sesión y vuelve a entrar para aplicar el grupo docker
-```
+- Linux con **Docker** y **Docker Compose v2**
+- GitHub Actions **self-hosted runner** registrado
+- (Opcional) **Cloudflare Tunnel** configurado para dominios públicos
 
-### 2. Clonar el repo (solo la primera vez)
+### 1. Clonar y configurar
 
 ```bash
 mkdir -p ~/zyncloud && cd ~/zyncloud
 git clone https://github.com/sasamile/CloudCore-AWS.git .
 cp .env.example .env
-nano .env   # Pon la IP de la PC y contraseñas
+nano .env
 ```
 
-### 3. Variables en GitHub (para construir el frontend con tu IP)
+> **Importante:** Los valores con espacios deben ir entre comillas en `.env`:
+> ```bash
+> GOOGLE_OAUTH_SCOPES="openid email profile"
+> GITHUB_OAUTH_SCOPES="repo read:user read:org"
+> HOST_CONSOLE_LABEL="ZynCloud Server"
+> ```
 
-En GitHub: **Settings → Secrets and variables → Actions → Variables** (pestaña Variables).
+### 2. Variables en GitHub Actions
 
-Crea las mismas URLs que en tu `.env` del servidor:
+En **Settings → Secrets and variables → Actions → Variables**:
 
 | Variable | Ejemplo |
 |----------|---------|
-| `NEXT_PUBLIC_API_URL` | `http://192.168.1.100:4000` |
-| `NEXT_PUBLIC_PUBLIC_HOST` | `192.168.1.100` |
+| `NEXT_PUBLIC_API_URL` | `https://apizyncloud.tudominio.com` |
+| `NEXT_PUBLIC_PUBLIC_HOST` | `zyncloud.tudominio.com` |
 
-GitHub Actions construye la imagen con esos valores; el servidor solo hace **pull**, no compila.
-
-### 4. Registrar GitHub Actions runner
-
-En GitHub: **Settings → Actions → Runners → New self-hosted runner** (Linux).
-
-Ejecuta los comandos que te da GitHub en la PC vieja, dentro de `~/zyncloud`.
-
-### 5. Primer deploy
-
-Tras el primer `push` a `main`, GitHub publica las imágenes en GHCR. En el servidor:
+### 3. Registrar runner y desplegar
 
 ```bash
+# Registrar self-hosted runner (instrucciones en GitHub → Settings → Actions → Runners)
 cd ~/zyncloud
-git pull   # solo esta vez, para obtener scripts actualizados
 bash scripts/deploy.sh
 ```
 
-O deja que el runner lo haga solo si ya está registrado.
+Cada `push` a `main` construye la imagen, la publica en GHCR y el runner ejecuta el deploy automáticamente.
 
-Abre `http://IP-DE-LA-PC:3000`.
+### Variables de entorno principales
 
-### 6. Deploy automático (sin git pull manual)
-
-Cada `push` a `main`:
-
-1. GitHub **construye** la app y sube imágenes a `ghcr.io`
-2. El runner en la PC vieja **descarga** las imágenes y ejecuta `docker compose up`
-
-No necesitas `git pull` en el servidor para actualizar la app (el runner hace checkout solo de scripts/compose).
-
-> Si cambias `NEXT_PUBLIC_*`, actualiza las **Variables** en GitHub y vuelve a hacer push.
-
-## Variables de entorno
-
-Ver `.env.example`. Lo más importante:
+Ver [`.env.example`](.env.example) para la lista completa.
 
 | Variable | Descripción |
 |----------|-------------|
 | `POSTGRES_PASSWORD` | Contraseña de PostgreSQL |
 | `JWT_SECRET` | Secreto para tokens de sesión |
-| `PUBLIC_HOST` | IP/hostname de la PC (para URLs de instancias) |
-| `FRONTEND_URL` | URL del panel web |
-| `NEXT_PUBLIC_API_URL` | URL de la API (se embebe en el build del frontend) |
-| `ZYNCLOUD_IMAGE` | Imagen de la app en GHCR (deploy automático) |
-| `UBUNTU_BASE_IMAGE` | Imagen base para instancias en GHCR |
+| `PUBLIC_HOST` | Hostname público del panel |
+| `FRONTEND_URL` | URL del dashboard |
+| `NEXT_PUBLIC_API_URL` | URL de la API (embebida en el build del frontend) |
+| `CLOUDFLARE_API_TOKEN` | Token para gestionar el túnel y DNS |
+| `CLOUDFLARE_TUNNEL_ID` | ID del túnel Cloudflare |
+| `ZYNCLOUD_IMAGE` | Imagen de la app en GHCR |
+| `GROQ_API_KEY` / `OPENAI_API_KEY` | Proveedor de IA para el asistente |
 
-> **Nota:** Si cambias `NEXT_PUBLIC_*`, actualiza las **Variables** en GitHub (Settings → Actions → Variables) y haz push a `main` para reconstruir la imagen.
+---
 
 ## Desarrollo local
 
 ```bash
+# Instalar dependencias
 npm install
+
+# Configurar entorno
 cp .env.example .env
-# Levanta solo la DB:
+
+# Levantar solo PostgreSQL
 docker compose up -d db
+
 # En .env local:
 # DATABASE_URL=postgresql://zyncloud:zyncloud@localhost:5432/zyncloud
 
+# Migraciones y arranque
 npm run db:migrate
 npm run dev
 ```
 
-## Comandos útiles
+| Servicio | URL |
+|----------|-----|
+| Dashboard | http://localhost:3000 |
+| API | http://localhost:4000 |
+
+### Comandos útiles
 
 ```bash
-# Ver logs
+# Logs en producción
 docker compose logs -f
 
-# Backup manual de la DB
+# Backup de la base de datos
 docker compose exec db pg_dump -U zyncloud zyncloud > backup.sql
 
-# Restaurar
+# Restaurar backup
 cat backup.sql | docker compose exec -T db psql -U zyncloud zyncloud
 
-# Ver volúmenes (la DB está en zyncloud-db-data)
-docker volume ls | grep zyncloud
+# Construir imagen base Ubuntu para instancias
+npm run docker:base
 ```
 
-## Estructura
+---
 
-```
-apps/api/     NestJS + Prisma
-apps/web/     Next.js dashboard
-docker/       Scripts e imagen Ubuntu base para instancias
-scripts/      deploy.sh
-```
+## Licencia
+
+Proyecto privado — Zyntek.
