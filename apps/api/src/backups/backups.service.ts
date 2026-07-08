@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DockerService } from '../docker/docker.service';
+import { extractContainerIp } from '../common/networking.util';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -15,7 +16,12 @@ export class BackupsService {
     private dockerService: DockerService,
   ) {}
 
-  async findByInstance(instanceId: string) {
+  async findByInstance(instanceId: string, userId: string) {
+    const instance = await this.prisma.instance.findFirst({
+      where: { id: instanceId, userId },
+    });
+    if (!instance) throw new NotFoundException('Instancia no encontrada');
+
     return this.prisma.backup.findMany({
       where: { instanceId },
       include: { instance: { select: { id: true, name: true } } },
@@ -23,8 +29,9 @@ export class BackupsService {
     });
   }
 
-  async findAll() {
+  async findAll(userId: string) {
     return this.prisma.backup.findMany({
+      where: { instance: { userId } },
       include: { instance: { select: { id: true, name: true } } },
       orderBy: { createdAt: 'desc' },
     });
@@ -43,13 +50,15 @@ export class BackupsService {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const fileName = `${instance.name}-${timestamp}.tar`;
     const filePath = path.join(BACKUP_DIR, fileName);
+    const repo = `zyncloud-backup/${instance.name}`;
+    const tag = timestamp;
+    const imageRef = `${repo}:${tag}`;
 
     try {
-      const repoTag = `zyncloud-backup/${instance.name}:${timestamp}`;
-      await this.dockerService.commitContainer(instance.containerId, repoTag);
+      await this.dockerService.commitContainer(instance.containerId, repo, tag);
 
       const docker = this.dockerService.getClient();
-      const image = docker.getImage(repoTag);
+      const image = docker.getImage(imageRef);
       const stream = await image.get();
 
       const chunks: Buffer[] = [];
@@ -83,41 +92,62 @@ export class BackupsService {
   }
 
   async restore(backupId: string, userId: string) {
-    const backup = await this.prisma.backup.findUnique({
-      where: { id: backupId },
+    const backup = await this.prisma.backup.findFirst({
+      where: { id: backupId, instance: { userId } },
       include: { instance: true },
     });
     if (!backup) throw new NotFoundException('Backup no encontrado');
 
-    const instance = await this.prisma.instance.findFirst({
-      where: { id: backup.instanceId, userId },
-    });
-    if (!instance) throw new NotFoundException('Instancia no encontrada');
+    const instance = backup.instance;
+    if (!instance.internalPort) {
+      throw new NotFoundException('La instancia no tiene puerto asignado');
+    }
+
+    const timestamp = backup.fileName.slice(instance.name.length + 1, -4);
+    const imageRef = `zyncloud-backup/${instance.name}:${timestamp}`;
 
     try {
       if (instance.containerId) {
         await this.dockerService.removeContainer(instance.containerId);
       }
 
-      const docker = this.dockerService.getClient();
       const fileContent = await fs.readFile(backup.filePath);
-      await new Promise<void>((resolve, reject) => {
-        docker.loadImage(fileContent as any, {}, (err: any) => {
-          if (err) reject(err);
-          else resolve();
-        });
+      const loadedImage = await this.dockerService.loadImage(fileContent);
+      const image = loadedImage || imageRef;
+
+      const container = await this.dockerService.createContainer({
+        name: `${instance.id}-${instance.name}`,
+        image,
+        memoryLimit: instance.memoryLimit,
+        cpuLimit: instance.cpuLimit,
+        hostPort: instance.internalPort,
+      });
+
+      await container.start();
+      const info = await container.inspect();
+      const ipAddress = extractContainerIp(info);
+
+      await this.prisma.instance.update({
+        where: { id: instance.id },
+        data: {
+          containerId: container.id,
+          status: 'running',
+          ipAddress,
+        },
       });
 
       this.logger.log(`Backup restored: ${backup.fileName}`);
-      return { message: 'Backup restaurado exitosamente' };
+      return { message: 'Snapshot restaurado. La instancia está en ejecución.' };
     } catch (error) {
       this.logger.error(`Restore failed: ${error.message}`);
       throw error;
     }
   }
 
-  async remove(id: string) {
-    const backup = await this.prisma.backup.findUnique({ where: { id } });
+  async remove(id: string, userId: string) {
+    const backup = await this.prisma.backup.findFirst({
+      where: { id, instance: { userId } },
+    });
     if (!backup) throw new NotFoundException('Backup no encontrado');
 
     try {

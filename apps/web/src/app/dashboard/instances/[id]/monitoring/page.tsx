@@ -66,7 +66,7 @@ export default function MonitoringPage() {
           { label: instanceName || "...", href: `/dashboard/instances/${params.id}` },
         ]}
       />
-      <div className="p-6 space-y-4">
+      <div className="w-full px-4 py-6 sm:px-6 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="rounded-lg border p-4">
             <div className="flex items-center justify-between mb-1">

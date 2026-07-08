@@ -8,26 +8,65 @@ datasource db {
 }
 
 model User {
-  id        String     @id @default(cuid())
-  email     String     @unique
-  password  String
-  name      String
-  createdAt DateTime   @default(now())
-  instances Instance[]
-  domains   Domain[]
-  sshKeys   SshKey[]
-  buckets   StorageBucket[]
+  id           String               @id @default(cuid())
+  email        String               @unique
+  password     String?
+  name         String
+  createdAt    DateTime             @default(now())
+  instances    Instance[]
+  domains      Domain[]
+  sshKeys      SshKey[]
+  buckets      StorageBucket[]
+  integrations IntegrationAccount[]
+  deployments  Deployment[]
+}
+
+model IntegrationAccount {
+  id              String   @id @default(cuid())
+  provider        String
+  providerUserId  String
+  username        String?
+  email           String?
+  accessTokenEnc  String
+  refreshTokenEnc String?
+  scope           String?
+  metadata        String?
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([provider, providerUserId])
+  @@unique([userId, provider])
+}
+
+model Deployment {
+  id           String   @id @default(cuid())
+  repoFullName String
+  branch       String   @default("main")
+  rootDir      String   @default(".")
+  buildCommand String?
+  startCommand String?
+  status       String   @default("idle")
+  lastLog      String?
+  instanceId   String
+  instance     Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model SshKey {
-  id          String     @id @default(cuid())
-  name        String
-  fingerprint String
-  publicKey   String
-  createdAt   DateTime   @default(now())
-  userId      String
-  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  instances   Instance[]
+  id            String     @id @default(cuid())
+  name          String
+  fingerprint   String
+  publicKey     String
+  privateKeyEnc String?
+  createdAt     DateTime   @default(now())
+  userId        String
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  instances     Instance[]
 
   @@unique([userId, name])
 }
@@ -52,6 +91,7 @@ model Instance {
   user        User     @relation(fields: [userId], references: [id])
   domains     Domain[]
   backups     Backup[]
+  deployments Deployment[]
 }
 
 model Domain {

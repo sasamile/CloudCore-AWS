@@ -30,12 +30,20 @@ export class AuthService {
       throw new UnauthorizedException('Credenciales invalidas');
     }
 
+    if (!user.password) {
+      throw new UnauthorizedException('Esta cuenta usa inicio de sesión con Google');
+    }
+
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
       throw new UnauthorizedException('Credenciales invalidas');
     }
 
     return this.generateToken(user.id, user.email);
+  }
+
+  tokenForUser(userId: string, email: string) {
+    return this.generateToken(userId, email).access_token;
   }
 
   private generateToken(userId: string, email: string) {

@@ -314,12 +314,13 @@ export class TunnelService implements OnModuleInit {
       ? []
       : this.registerDnsForHostnames(ingress);
 
-    const restarted =
-      !cloudflareSynced && configPath ? this.restartCloudflared() : false;
+    // Restart cloudflared whenever config was written, regardless of API sync,
+    // because locally-managed tunnels read from the file and need a reload.
+    const restarted = configPath ? this.restartCloudflared() : false;
 
     if (!cloudflareSynced && !restarted) {
       this.logger.warn(
-        `Tunnel sync failed: ${cfPush.error ?? 'unknown'}. Client DNS alone is not enough — route must be published to Cloudflare.`,
+        `Tunnel sync incomplete: API ${cfPush.error ?? 'unknown'}, cloudflared restart also failed.`,
       );
     }
 

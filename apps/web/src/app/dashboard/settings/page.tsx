@@ -7,7 +7,7 @@ export default function SettingsPage() {
   return (
     <>
       <Header title="Settings" breadcrumbs={[{ label: "System" }]} />
-      <div className="p-6 space-y-4 max-w-3xl">
+      <div className="w-full px-4 py-6 sm:px-6 space-y-4">
         <div className="rounded-lg border">
           <div className="flex items-center gap-2 px-4 py-3 border-b">
             <Info className="w-4 h-4" />

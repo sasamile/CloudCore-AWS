@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as Docker from 'dockerode';
+import { Readable } from 'stream';
 
 @Injectable()
 export class DockerService {
@@ -134,9 +135,26 @@ export class DockerService {
     return exec;
   }
 
-  async commitContainer(containerId: string, repoTag: string) {
+  async commitContainer(containerId: string, repo: string, tag: string) {
     const container = this.docker.getContainer(containerId);
-    return container.commit({ repo: repoTag });
+    return container.commit({ repo, tag });
+  }
+
+  async loadImage(tarBuffer: Buffer): Promise<string> {
+    const input = Readable.from(tarBuffer);
+    return new Promise((resolve, reject) => {
+      this.docker.loadImage(input, {}, (err: Error | null, stream: NodeJS.ReadableStream) => {
+        if (err) return reject(err);
+        const chunks: Buffer[] = [];
+        stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+        stream.on('end', () => {
+          const output = Buffer.concat(chunks).toString();
+          const match = output.match(/Loaded image: (.+)/);
+          resolve(match?.[1]?.trim() || '');
+        });
+        stream.on('error', reject);
+      });
+    });
   }
 
   streamStats(containerId: string, callback: (stats: any) => void) {

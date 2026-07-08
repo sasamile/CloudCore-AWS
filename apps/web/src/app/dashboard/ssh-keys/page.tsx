@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react"
 import { Header } from "@/components/layout/header"
 import { api } from "@/lib/api"
-import { Key, Plus, Trash2, Download, RefreshCw, Search, Copy, Check } from "lucide-react"
+import { formatApiError } from "@/lib/format-api-error"
+import { downloadPem } from "@/lib/instance"
+import { TableRowsSkeleton } from "@/components/skeletons/page-skeletons"
+import { Key, Plus, Trash2, Download, RefreshCw, Search, Copy, Check, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -23,6 +26,7 @@ interface KeyPair {
   name: string
   fingerprint: string
   createdAt: string
+  canDownload: boolean
 }
 
 export default function SSHKeysPage() {
@@ -33,6 +37,7 @@ export default function SSHKeysPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [newKeyName, setNewKeyName] = useState("")
   const [creating, setCreating] = useState(false)
+  const [downloading, setDownloading] = useState<string | null>(null)
   const [error, setError] = useState("")
   const [createdKey, setCreatedKey] = useState<{ name: string; privateKey: string } | null>(null)
   const [copied, setCopied] = useState(false)
@@ -69,6 +74,34 @@ export default function SSHKeysPage() {
     setCreating(false)
   }
 
+  async function handleRename(id: string, currentName: string) {
+    const newName = prompt("Nuevo nombre del key pair:", currentName)
+    if (!newName || newName.trim() === currentName) return
+    try {
+      await api.patch(`/ssh-keys/${id}`, { name: newName.trim() })
+      fetchKeys()
+    } catch (err) {
+      setError(formatApiError(err instanceof Error ? err.message : undefined))
+    }
+  }
+
+  async function handleDownload(id: string, name: string, canDownload: boolean) {
+    if (!canDownload) {
+      setError("Esta clave es antigua y no tiene copia guardada. Crea un key pair nuevo.")
+      return
+    }
+    setDownloading(id)
+    setError("")
+    try {
+      const data = await api.get<{ name: string; privateKey: string }>(`/ssh-keys/${id}/download`)
+      downloadPem(data.name, data.privateKey)
+    } catch (err) {
+      setError(formatApiError(err instanceof Error ? err.message : undefined))
+    } finally {
+      setDownloading(null)
+    }
+  }
+
   async function handleDelete(id: string) {
     if (!confirm("¿Eliminar este key pair permanentemente?")) return
     try {
@@ -79,16 +112,6 @@ export default function SSHKeysPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al eliminar")
     }
-  }
-
-  function downloadKey(name: string, content: string) {
-    const blob = new Blob([content], { type: "application/x-pem-file" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `${name}.pem`
-    a.click()
-    URL.revokeObjectURL(url)
   }
 
   function copyToClipboard(text: string) {
@@ -117,16 +140,16 @@ export default function SSHKeysPage() {
     <>
       <Header
         title="Key Pairs"
-        breadcrumbs={[{ label: "EC2", href: "/dashboard/instances" }, { label: "Network & Security" }]}
+        breadcrumbs={[{ label: "Compute", href: "/dashboard/instances" }]}
       />
-      <div className="p-6 space-y-4">
+      <div className="w-full px-4 py-6 sm:px-6 space-y-4">
         {createdKey && (
-          <Alert variant="warning">
-            <AlertTitle>Key pair creado exitosamente</AlertTitle>
+          <Alert>
+            <AlertTitle>Key pair creado</AlertTitle>
             <AlertDescription className="mt-2 space-y-3">
-              <p>Descarga el archivo .pem ahora. No podrás descargarlo de nuevo.</p>
-              <div className="flex items-center gap-2">
-                <Button size="sm" onClick={() => downloadKey(createdKey.name, createdKey.privateKey)}>
+              <p>Descarga el archivo .pem ahora. También puedes volver a descargarlo desde la lista.</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button size="sm" onClick={() => downloadPem(createdKey.name, createdKey.privateKey)}>
                   <Download className="w-3.5 h-3.5" /> Descargar .pem
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => copyToClipboard(createdKey.privateKey)}>
@@ -144,26 +167,27 @@ export default function SSHKeysPage() {
         {showCreate && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">Create key pair</CardTitle>
+              <CardTitle className="text-sm">Crear key pair</CardTitle>
+              <CardDescription>Se generará un par RSA 2048 para conectar por SSH.</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleCreate} className="space-y-4">
                 <div className="space-y-2 max-w-md">
-                  <Label htmlFor="keyName">Key pair name</Label>
+                  <Label htmlFor="keyName">Nombre</Label>
                   <Input
                     id="keyName"
                     value={newKeyName}
                     onChange={(e) => setNewKeyName(e.target.value)}
-                    placeholder="my-key-pair"
+                    placeholder="mi-key-pair"
                     required
                   />
                 </div>
                 <div className="flex gap-2">
                   <Button type="submit" size="sm" disabled={creating}>
-                    {creating ? "Creating..." : "Create key pair"}
+                    {creating ? "Creando..." : "Crear key pair"}
                   </Button>
                   <Button type="button" size="sm" variant="outline" onClick={() => setShowCreate(false)}>
-                    Cancel
+                    Cancelar
                   </Button>
                 </div>
               </form>
@@ -190,15 +214,15 @@ export default function SSHKeysPage() {
                   size="sm"
                   className="text-destructive border-destructive/30 hover:bg-destructive/10"
                   onClick={() => {
-                    if (!confirm(`Delete ${selected.size} key pair(s)?`)) return
+                    if (!confirm(`¿Eliminar ${selected.size} key pair(s)?`)) return
                     selected.forEach((id) => handleDelete(id))
                   }}
                 >
-                  Delete
+                  Eliminar
                 </Button>
               )}
               <Button size="sm" onClick={() => setShowCreate(true)}>
-                <Plus className="w-3.5 h-3.5" /> Create key pair
+                <Plus className="w-3.5 h-3.5" /> Crear key pair
               </Button>
             </div>
           </CardHeader>
@@ -210,22 +234,22 @@ export default function SSHKeysPage() {
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Filter key pairs..."
+                  placeholder="Buscar key pairs..."
                   className="h-8 pl-8 text-xs"
                 />
               </div>
             </div>
 
             {loading ? (
-              <div className="p-8 text-center text-sm text-muted-foreground">Loading key pairs...</div>
+              <TableRowsSkeleton rows={5} cols={4} />
             ) : filtered.length === 0 ? (
               <div className="p-12 text-center">
                 <Key className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
                 <p className="text-sm text-muted-foreground mb-4">
-                  {search ? "No key pairs match your filter" : "No key pairs yet"}
+                  {search ? "No hay key pairs que coincidan" : "Aún no tienes key pairs"}
                 </p>
                 {!search && (
-                  <Button size="sm" onClick={() => setShowCreate(true)}>Create key pair</Button>
+                  <Button size="sm" onClick={() => setShowCreate(true)}>Crear key pair</Button>
                 )}
               </div>
             ) : (
@@ -240,10 +264,10 @@ export default function SSHKeysPage() {
                         className="rounded"
                       />
                     </TableHead>
-                    <TableHead>Name</TableHead>
+                    <TableHead>Nombre</TableHead>
                     <TableHead>Fingerprint</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>Creado</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -268,14 +292,35 @@ export default function SSHKeysPage() {
                         {new Date(key.createdAt).toLocaleDateString()}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(key.id)}
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Renombrar"
+                            onClick={() => handleRename(key.id, key.name)}
+                            className="h-8 w-8"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title={key.canDownload ? "Descargar .pem" : "Sin copia guardada"}
+                            disabled={!key.canDownload || downloading === key.id}
+                            onClick={() => handleDownload(key.id, key.name, key.canDownload)}
+                            className="h-8 w-8"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDelete(key.id)}
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

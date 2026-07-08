@@ -3,8 +3,25 @@
 import { useEffect, useState } from "react"
 import { Header } from "@/components/layout/header"
 import { api } from "@/lib/api"
+import { formatApiError } from "@/lib/format-api-error"
 import { useToast } from "@/hooks/use-toast"
-import { Globe, Shield, Trash2, Plus, Search, RefreshCw, Info, CheckCircle2, ExternalLink } from "lucide-react"
+import { TableRowsSkeleton } from "@/components/skeletons/page-skeletons"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import {
+  Globe,
+  Trash2,
+  Plus,
+  Search,
+  RefreshCw,
+  ExternalLink,
+  Copy,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+} from "lucide-react"
 
 interface Domain {
   id: string
@@ -21,18 +38,50 @@ interface Instance {
   id: string
   name: string
   status: string
-  internalPort: number | null
 }
 
 interface TunnelStatus {
   mode: string
   baseDomain: string | null
-  tunnelName: string | null
   cnameTarget: string | null
-  autoDns: boolean
-  autoReload: boolean
-  clientSteps: string[]
-  dnsExample: { type: string; name: string; target: string; note: string } | null
+}
+
+function CopyValue({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        navigator.clipboard.writeText(value)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      }}
+      className="inline-flex items-center gap-1.5 font-mono text-xs hover:text-primary transition-colors"
+    >
+      <span className="break-all">{value}</span>
+      {copied ? <Check className="w-3 h-3 text-green-600 shrink-0" /> : <Copy className="w-3 h-3 shrink-0 opacity-50" />}
+    </button>
+  )
+}
+
+function DomainStatus({ active, isTunnel }: { active?: boolean; isTunnel: boolean }) {
+  if (!isTunnel) {
+    return <Badge variant="secondary">Configurar DNS</Badge>
+  }
+  if (active) {
+    return (
+      <Badge variant="success" className="gap-1">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+        Activo
+      </Badge>
+    )
+  }
+  return (
+    <Badge variant="secondary" className="gap-1 text-amber-700 dark:text-amber-400 border-amber-500/30">
+      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+      Pendiente DNS
+    </Badge>
+  )
 }
 
 export default function DomainsPage() {
@@ -42,10 +91,15 @@ export default function DomainsPage() {
   const [tunnel, setTunnel] = useState<TunnelStatus | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [domainName, setDomainName] = useState("")
-  const [targetPort, setTargetPort] = useState(3000)
   const [instanceId, setInstanceId] = useState("")
   const [loading, setLoading] = useState(false)
+  const [pageLoading, setPageLoading] = useState(true)
   const [search, setSearch] = useState("")
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState(false)
+
+  const isTunnel = tunnel?.mode === "tunnel"
+  const cnameTarget = tunnel?.cnameTarget
 
   async function fetchDomains() {
     try {
@@ -53,389 +107,282 @@ export default function DomainsPage() {
     } catch {}
   }
 
-  async function fetchInstances() {
-    try {
-      setInstances(await api.get<Instance[]>("/instances"))
-    } catch {}
-  }
-
-  async function fetchTunnel() {
-    try {
-      setTunnel(await api.get<TunnelStatus>("/domains/tunnel-status"))
-    } catch {}
+  async function fetchAll() {
+    await Promise.all([
+      fetchDomains(),
+      api.get<Instance[]>("/instances").then(setInstances).catch(() => {}),
+      api.get<TunnelStatus>("/domains/tunnel-status").then(setTunnel).catch(() => {}),
+    ])
+    setPageLoading(false)
   }
 
   useEffect(() => {
-    fetchDomains()
-    fetchInstances()
-    fetchTunnel()
+    fetchAll()
   }, [])
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     try {
-      const result = await api.post<
-        Domain & {
-          tunnelSync?: { dnsRegistered: string[]; restarted: boolean; cloudflareSynced: boolean }
-        }
-      >("/domains", { domain: domainName, targetPort, instanceId })
+      await api.post("/domains", { domain: domainName, instanceId })
       setShowForm(false)
       setDomainName("")
-      setTargetPort(3000)
       setInstanceId("")
-      fetchDomains()
-
-      const sync = result.tunnelSync
-      if (sync?.cloudflareSynced) {
-        toast({
-          title: "Dominio publicado",
-          description: `Ruta enviada a Cloudflare. En 1–2 min abre https://${domainName}`,
-        })
-      } else if (sync?.restarted) {
-        toast({
-          title: "Dominio guardado",
-          description: "Ruta actualizada y túnel reiniciado.",
-        })
-      } else if (tunnel?.mode === "tunnel") {
-        toast({
-          title: "Dominio guardado",
-          description: `CNAME en tu DNS → ${tunnel.cnameTarget ?? "el túnel"}. Si sigue en 404, el admin debe activar CLOUDFLARE_API_TOKEN.`,
-        })
-      }
-    } catch {
-      toast({ title: "Error", description: "No se pudo crear el dominio", variant: "destructive" })
+      await fetchDomains()
+      toast({
+        title: "Dominio agregado",
+        description: isTunnel
+          ? "Configura el registro DNS que aparece abajo para activarlo."
+          : "Dominio guardado correctamente.",
+      })
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: formatApiError(err instanceof Error ? err.message : undefined),
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   async function handleDelete(id: string) {
     if (!confirm("¿Eliminar este dominio?")) return
-    await api.delete(`/domains/${id}`)
-    fetchDomains()
+    try {
+      await api.delete(`/domains/${id}`)
+      if (expanded === id) setExpanded(null)
+      fetchDomains()
+      toast({ title: "Dominio eliminado" })
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: formatApiError(err instanceof Error ? err.message : undefined),
+        variant: "destructive",
+      })
+    }
   }
 
-  async function handleEnableSsl(id: string) {
-    await api.post(`/domains/${id}/ssl`)
-    fetchDomains()
-  }
-
-  const [syncing, setSyncing] = useState(false)
-
-  async function handleSyncTunnel() {
+  async function handleRetrySync() {
     setSyncing(true)
     try {
-      const result = await api.post<{
-        ok: boolean
-        cloudflareSynced: boolean
-        cloudflareError?: string
-        domains?: { domain: string; active: boolean }[]
-      }>("/domains/sync-tunnel")
-      fetchDomains()
+      const result = await api.post<{ cloudflareSynced: boolean; cloudflareError?: string }>(
+        "/domains/sync-tunnel"
+      )
+      await fetchDomains()
       if (result.cloudflareSynced) {
-        toast({
-          title: "Rutas publicadas en Cloudflare",
-          description: "Espera 1–2 min y prueba tu dominio.",
-        })
+        toast({ title: "Rutas actualizadas", description: "Espera 1–2 minutos y prueba tu dominio." })
       } else {
         toast({
-          title: "No se pudo publicar al túnel",
-          description: result.cloudflareError ?? "El servidor necesita CLOUDFLARE_API_TOKEN válido.",
+          title: "No se pudo sincronizar",
+          description: result.cloudflareError ?? "Revisa la configuración del túnel.",
           variant: "destructive",
         })
       }
-    } catch {
-      toast({ title: "Error al sincronizar", variant: "destructive" })
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: formatApiError(err instanceof Error ? err.message : undefined),
+        variant: "destructive",
+      })
+    } finally {
+      setSyncing(false)
     }
-    setSyncing(false)
-  }
-
-  function onInstanceChange(id: string) {
-    setInstanceId(id)
-    const inst = instances.find((i) => i.id === id)
-    if (inst?.internalPort) setTargetPort(inst.internalPort)
   }
 
   const filtered = domains.filter((d) => d.domain.toLowerCase().includes(search.toLowerCase()))
-  const inputCls =
-    "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-  const isTunnel = tunnel?.mode === "tunnel"
+  const pendingCount = domains.filter((d) => isTunnel && d.routeActive === false).length
 
   return (
     <>
       <Header title="Domains" breadcrumbs={[{ label: "Network" }]} />
-      <div className="p-6 space-y-4">
-        <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <Info className="w-4 h-4" />
-            {isTunnel ? "Dominio propio (modo cliente)" : "DNS Configuration"}
+      <div className="w-full px-4 py-6 sm:px-6 space-y-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">Domains</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {isTunnel
+                ? "Agrega tu dominio, conéctalo a una instancia y configura el DNS."
+                : "Apunta tus dominios a las instancias de tu servidor."}
+            </p>
           </div>
-
-          {isTunnel ? (
-            <div className="text-xs text-muted-foreground space-y-3">
-              <p className="text-foreground font-medium">2 pasos — tú no tocas el servidor:</p>
-              <ol className="list-decimal list-inside space-y-1">
-                <li>ZynCloud → Domains → agrega dominio + instancia → pulsa <strong>Publicar rutas</strong></li>
-                <li>En TU Cloudflare: CNAME → <code className="font-mono">{tunnel?.cnameTarget ?? "....cfargotunnel.com"}</code></li>
-              </ol>
-
-              <div className="rounded-md border bg-background p-3 space-y-2">
-                <p className="font-medium text-foreground">Ejemplo: prueba.vekino.site (dominio del cliente)</p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 font-mono text-[11px]">
-                  <div>
-                    <span className="text-muted-foreground">ZynCloud → Domain</span>
-                    <div className="text-foreground">prueba.vekino.site</div>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Instance</span>
-                    <div className="text-foreground">Prueba</div>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Port</span>
-                    <div className="text-foreground">3000</div>
-                  </div>
-                </div>
-                {tunnel?.dnsExample && (
-                  <div className="mt-2 p-2 rounded bg-muted/50 font-mono text-[11px] space-y-1">
-                    <p className="font-sans font-medium text-foreground text-xs">
-                      En el DNS del cliente (Cloudflare / Hostinger):
-                    </p>
-                    <div>
-                      Type: <strong>{tunnel.dnsExample.type}</strong> (no uses A)
-                    </div>
-                    <div>
-                      Name: <strong>{tunnel.dnsExample.name}</strong>
-                    </div>
-                    <div>
-                      Target: <strong className="break-all">{tunnel.cnameTarget ?? tunnel.dnsExample.target}</strong>
-                    </div>
-                    <p className="font-sans text-muted-foreground">
-                      En la lista DNS, Cloudflare puede mostrar &quot;Tunnel → zyncloud&quot; aunque sea CNAME. Eso está bien.
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex flex-wrap gap-3 text-[11px]">
-                {tunnel?.autoReload && (
-                  <span className="inline-flex items-center gap-1 text-green-600">
-                    <CheckCircle2 className="w-3 h-3" /> Ruta del túnel se actualiza sola
-                  </span>
-                )}
-                {tunnel?.baseDomain && (
-                  <span className="text-muted-foreground">
-                    Dominios *.{tunnel.baseDomain} en tu cuenta CF: DNS automático
-                  </span>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="text-xs text-muted-foreground space-y-2">
-              <p>
-                1. Crea un registro <code className="font-mono bg-muted px-1 rounded">A</code> apuntando a la IP
-                pública del servidor.
-              </p>
-              <p>2. Configura Nginx en el servidor para cada dominio.</p>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={fetchAll}>
+              <RefreshCw className="w-3.5 h-3.5" />
+            </Button>
+            <Button size="sm" onClick={() => setShowForm(true)}>
+              <Plus className="w-3.5 h-3.5" /> Agregar dominio
+            </Button>
+          </div>
         </div>
 
+        {isTunnel && tunnel?.baseDomain && (
+          <div className="rounded-lg border bg-muted/30 px-4 py-3 text-sm">
+            <span className="text-muted-foreground">Subdominio automático: </span>
+            <code className="font-mono text-xs">
+              {"{instancia}."}
+              {tunnel.baseDomain}
+            </code>
+            <span className="text-muted-foreground"> — se activa al iniciar la instancia, sin configurar DNS.</span>
+          </div>
+        )}
+
         {showForm && (
-          <div className="rounded-lg border">
-            <div className="px-4 py-3 border-b">
-              <h3 className="text-sm font-medium">Add domain</h3>
-            </div>
-            <form onSubmit={handleCreate} className="p-4 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="rounded-lg border p-4 space-y-4">
+            <h3 className="text-sm font-medium">Agregar dominio</h3>
+            <form onSubmit={handleCreate} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Domain</label>
-                  <input
-                    type="text"
+                  <label className="text-sm font-medium">Dominio</label>
+                  <Input
                     value={domainName}
                     onChange={(e) => setDomainName(e.target.value)}
-                    className={inputCls}
-                    placeholder={isTunnel ? "prueba.vekino.site" : "app.example.com"}
+                    placeholder={isTunnel ? "app.tudominio.com" : "app.example.com"}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Host port (auto)</label>
-                  <input
-                    type="number"
-                    value={targetPort}
-                    readOnly
-                    className={`${inputCls} bg-muted/50`}
-                    title="Puerto en el servidor, asignado automáticamente"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Instance</label>
+                  <label className="text-sm font-medium">Instancia</label>
                   <select
                     value={instanceId}
-                    onChange={(e) => onInstanceChange(e.target.value)}
-                    className={inputCls}
+                    onChange={(e) => setInstanceId(e.target.value)}
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
                     required
                   >
-                    <option value="">Select instance...</option>
+                    <option value="">Seleccionar instancia...</option>
                     {instances.map((inst) => (
                       <option key={inst.id} value={inst.id}>
-                        {inst.name} ({inst.status}){inst.internalPort ? ` — port ${inst.internalPort}` : ""}
+                        {inst.name} ({inst.status})
                       </option>
                     ))}
                   </select>
                 </div>
               </div>
               <div className="flex gap-2">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground shadow hover:bg-primary/90 h-8 px-3 disabled:opacity-50"
-                >
-                  {loading ? "Saving..." : "Add domain"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowForm(false)}
-                  className="inline-flex items-center justify-center rounded-md text-sm font-medium border bg-background hover:bg-accent h-8 px-3"
-                >
-                  Cancel
-                </button>
+                <Button type="submit" size="sm" disabled={loading}>
+                  {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                  {loading ? "Guardando..." : "Agregar"}
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => setShowForm(false)}>
+                  Cancelar
+                </Button>
               </div>
             </form>
           </div>
         )}
 
         <div className="rounded-lg border">
-          <div className="flex items-center justify-between px-4 py-3 border-b">
-            <h2 className="text-sm font-medium">Domains ({filtered.length})</h2>
-            <div className="flex items-center gap-2">
-              {isTunnel && (
-                <button
-                  onClick={handleSyncTunnel}
-                  disabled={syncing}
-                  className="inline-flex items-center justify-center rounded-md text-sm font-medium border bg-background hover:bg-accent h-8 px-3 gap-1.5 disabled:opacity-50"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
-                  {syncing ? "Publicando..." : "Publicar rutas"}
-                </button>
-              )}
-              <button
-                onClick={() => {
-                  fetchDomains()
-                  fetchTunnel()
-                }}
-                className="inline-flex items-center justify-center rounded-md border bg-background hover:bg-accent h-8 w-8"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => setShowForm(true)}
-                className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground shadow hover:bg-primary/90 h-8 px-3 gap-1.5"
-              >
-                <Plus className="w-3.5 h-3.5" /> Add domain
-              </button>
-            </div>
-          </div>
-          <div className="px-4 py-2.5 border-b bg-muted/30">
-            <div className="relative max-w-sm">
+          <div className="px-4 py-2.5 border-b bg-muted/30 flex items-center justify-between gap-3">
+            <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Filter domains..."
+                placeholder="Buscar dominios..."
                 className="flex h-8 w-full rounded-md border border-input bg-transparent pl-8 pr-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
             </div>
+            {isTunnel && pendingCount > 0 && (
+              <Button variant="outline" size="sm" onClick={handleRetrySync} disabled={syncing}>
+                {syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                Reintentar ({pendingCount})
+              </Button>
+            )}
           </div>
-          {filtered.length === 0 ? (
+
+          {pageLoading ? (
+            <TableRowsSkeleton rows={4} cols={4} />
+          ) : filtered.length === 0 ? (
             <div className="p-12 text-center">
               <Globe className="w-10 h-10 text-muted-foreground/50 mx-auto mb-3" />
               <p className="text-sm text-muted-foreground mb-4">
-                {search ? "No domains match your filter" : "No domains configured yet"}
+                {search ? "No hay dominios que coincidan" : "Aún no tienes dominios"}
               </p>
               {!search && (
-                <button
-                  onClick={() => setShowForm(true)}
-                  className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground shadow hover:bg-primary/90 h-8 px-3"
-                >
-                  Add domain
-                </button>
+                <Button size="sm" onClick={() => setShowForm(true)}>
+                  Agregar dominio
+                </Button>
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="h-10 px-4 text-left font-medium text-muted-foreground">Domain</th>
-                    <th className="h-10 px-4 text-left font-medium text-muted-foreground">Instance</th>
-                    <th className="h-10 px-4 text-left font-medium text-muted-foreground">Port</th>
-                    <th className="h-10 px-4 text-left font-medium text-muted-foreground">Ruta</th>
-                    <th className="h-10 px-4 text-left font-medium text-muted-foreground">SSL</th>
-                    <th className="h-10 px-4 text-left font-medium text-muted-foreground">Created</th>
-                    <th className="h-10 px-4 text-right font-medium text-muted-foreground">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((d) => (
-                    <tr key={d.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
-                      <td className="p-4">
-                        <a
-                          href={`https://${d.domain}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="font-mono text-xs font-medium inline-flex items-center gap-1 hover:underline"
-                        >
-                          {d.domain}
-                          <ExternalLink className="w-3 h-3 text-muted-foreground" />
-                        </a>
-                      </td>
-                      <td className="p-4 text-xs">{d.instance.name}</td>
-                      <td className="p-4 font-mono text-xs text-muted-foreground">{d.targetPort}</td>
-                      <td className="p-4">
-                        {d.routeActive === undefined ? (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        ) : d.routeActive ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium text-green-600">
-                            <CheckCircle2 className="w-3 h-3" /> En Cloudflare
-                          </span>
-                        ) : (
-                          <span className="text-xs text-amber-600">Pulsa Publicar rutas</span>
-                        )}
-                      </td>
-                      <td className="p-4">
-                        <span
-                          className={`inline-flex items-center gap-1 text-xs font-medium ${d.sslEnabled ? "text-green-600" : "text-muted-foreground"}`}
-                        >
-                          <Shield className="w-3 h-3" /> {d.sslEnabled ? "Active" : "Inactive"}
-                        </span>
-                      </td>
-                      <td className="p-4 text-xs text-muted-foreground">
-                        {new Date(d.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center justify-end gap-1">
-                          {!d.sslEnabled && (
-                            <button
-                              onClick={() => handleEnableSsl(d.id)}
-                              className="inline-flex items-center justify-center rounded-md text-xs font-medium border bg-background hover:bg-accent h-7 px-2"
-                            >
-                              Enable SSL
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleDelete(d.id)}
-                            className="inline-flex items-center justify-center rounded-md w-7 h-7 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+            <div className="divide-y">
+              {filtered.map((d) => {
+                const isExpanded = expanded === d.id
+                const dns = d.clientDns ?? (cnameTarget ? { type: "CNAME", name: d.domain.split(".")[0], target: cnameTarget } : null)
+                const showDns = isTunnel && d.routeActive === false && dns
+
+                return (
+                  <div key={d.id}>
+                    <div className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <a
+                            href={`https://${d.domain}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-medium text-sm inline-flex items-center gap-1 hover:underline"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                            {d.domain}
+                            <ExternalLink className="w-3 h-3 text-muted-foreground" />
+                          </a>
+                          <DomainStatus active={d.routeActive} isTunnel={!!isTunnel} />
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          → {d.instance.name}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {showDns && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => setExpanded(isExpanded ? null : d.id)}
+                          >
+                            DNS
+                            {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => handleDelete(d.id)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {isExpanded && showDns && dns && (
+                      <div className="px-4 pb-4">
+                        <div className="rounded-md border bg-muted/30 p-4 space-y-3 text-sm">
+                          <p className="text-muted-foreground">
+                            Agrega este registro en el DNS de tu dominio (Cloudflare, Hostinger, etc.):
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground mb-1">Tipo</p>
+                              <CopyValue value={dns.type} />
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground mb-1">Nombre</p>
+                              <CopyValue value={dns.name} />
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground mb-1">Destino</p>
+                              <CopyValue value={dns.target} />
+                            </div>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            La propagación puede tardar 1–5 minutos. HTTPS se activa automáticamente.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>

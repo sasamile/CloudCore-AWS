@@ -77,9 +77,4 @@ export class InstancesController {
   restart(@Param('id') id: string, @CurrentUser() user: { id: string }) {
     return this.instancesService.restart(id, user.id);
   }
-
-  @Post(':id/deploy-test')
-  deployTest(@Param('id') id: string, @CurrentUser() user: { id: string }) {
-    return this.instancesService.deployTestApp(id, user.id);
-  }
 }

@@ -10,6 +10,8 @@ import { SshKeysModule } from './ssh-keys/ssh-keys.module';
 import { TunnelModule } from './tunnel/tunnel.module';
 import { StorageModule } from './storage/storage.module';
 import { HostConsoleModule } from './host-console/host-console.module';
+import { IntegrationsModule } from './integrations/integrations.module';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { HostConsoleModule } from './host-console/host-console.module';
     SshKeysModule,
     StorageModule,
     HostConsoleModule,
+    IntegrationsModule,
+    AiModule,
   ],
 })
 export class AppModule {}

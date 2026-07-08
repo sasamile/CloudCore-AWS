@@ -97,7 +97,7 @@ export function HostTerminal({ onConnected }: HostTerminalProps) {
   return (
     <div
       ref={terminalRef}
-      className="w-full h-full rounded-lg overflow-hidden border border-border"
+      className="terminal-shell"
     />
   )
 }

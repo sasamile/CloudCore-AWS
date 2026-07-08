@@ -7,7 +7,6 @@ import "./globals.css"
 export const metadata: Metadata = {
   title: "ZynCloud",
   description: "Cloud management console for Docker instances",
-  icons: { icon: "/logo.svg", apple: "/logo.svg" },
 }
 
 export default function RootLayout({

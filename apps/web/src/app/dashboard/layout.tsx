@@ -3,6 +3,7 @@
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Sidebar } from "@/components/layout/sidebar"
+import { MobileNavProvider } from "@/components/layout/mobile-nav"
 
 export default function DashboardLayout({
   children,
@@ -19,9 +20,11 @@ export default function DashboardLayout({
   }, [router])
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar />
-      <main className="flex-1 ml-[250px] brand-mesh min-h-screen">{children}</main>
-    </div>
+    <MobileNavProvider>
+      <div className="flex min-h-screen">
+        <Sidebar />
+        <main className="flex-1 lg:ml-[250px] brand-mesh min-h-screen min-w-0">{children}</main>
+      </div>
+    </MobileNavProvider>
   )
 }

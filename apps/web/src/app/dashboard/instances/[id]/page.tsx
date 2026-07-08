@@ -16,17 +16,15 @@ import {
   Activity,
   Globe,
   Trash2,
-  Rocket,
-  ExternalLink,
   HardDrive,
   Copy,
   Check,
   Key,
   Server,
-  Network,
   AlertCircle,
   ArrowLeft,
   Loader2,
+  ExternalLink,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -34,6 +32,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Separator } from "@/components/ui/separator"
+import { DetailPageSkeleton } from "@/components/skeletons/page-skeletons"
 import {
   Table,
   TableBody,
@@ -118,8 +117,6 @@ export default function InstanceDetailPage() {
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [deploying, setDeploying] = useState(false)
-  const [deployResult, setDeployResult] = useState<{ url: string; message: string } | null>(null)
 
   async function fetchInstance() {
     try {
@@ -167,8 +164,8 @@ export default function InstanceDetailPage() {
     return (
       <>
         <Header title="Instance" breadcrumbs={[{ label: "Instances", href: "/dashboard/instances" }]} />
-        <div className="p-6 flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="w-4 h-4 animate-spin" /> Loading instance...
+        <div className="w-full px-4 py-6 sm:px-6">
+          <DetailPageSkeleton />
         </div>
       </>
     )
@@ -177,11 +174,18 @@ export default function InstanceDetailPage() {
 
   const isRunning = instance.status === "running"
   const isError = instance.status === "error"
-  const publicIp = instance.publicHost !== "localhost" ? instance.publicHost : null
+  const isTunnel = instance.routingMode === "tunnel"
+  const isNginx = instance.routingMode === "nginx"
+  const isLocal = instance.publicHost === "localhost"
 
-  const ports = [
-    { name: "App (Node.js)", host: instance.internalPort, container: 3000 },
-    { name: "HTTP (Nginx)", host: instance.httpPort, container: 80 },
+  const publicUrl =
+    isTunnel && instance.suggestedDomain
+      ? instance.appUrl || `https://${instance.suggestedDomain}`
+      : instance.appUrl
+
+  const localPorts = [
+    { name: "Application", host: instance.internalPort, container: 3000 },
+    ...(isNginx ? [{ name: "HTTP (Nginx)", host: instance.httpPort, container: 80 }] : []),
     { name: "SSH", host: instance.sshPort, container: 22 },
   ]
 
@@ -195,7 +199,7 @@ export default function InstanceDetailPage() {
         ]}
       />
 
-      <div className="p-6 max-w-5xl mx-auto space-y-6">
+      <div className="w-full px-4 py-6 sm:px-6 space-y-6">
         <Button variant="ghost" size="sm" asChild className="-ml-2 text-muted-foreground">
           <Link href="/dashboard/instances">
             <ArrowLeft className="w-3.5 h-3.5" /> All instances
@@ -261,13 +265,16 @@ export default function InstanceDetailPage() {
           </div>
         </div>
 
-        {isNew && instance.sshCommand && (
+        {isNew && (publicUrl || instance.sshCommand) && (
           <Alert className="border-emerald-500/30 bg-emerald-500/5">
             <Check className="w-4 h-4 text-emerald-600" />
             <AlertTitle>Instance created</AlertTitle>
             <AlertDescription className="space-y-2 mt-2">
-              <CopyBlock label="SSH command" value={instance.sshCommand} />
-              {newKeyName && (
+              {publicUrl && <CopyBlock label={isTunnel ? "Public URL" : "App URL"} value={publicUrl} />}
+              {!isTunnel && instance.sshCommand && (
+                <CopyBlock label="SSH command" value={instance.sshCommand} />
+              )}
+              {newKeyName && !isTunnel && (
                 <p className="text-xs">
                   Move <code className="font-mono">~/.ssh/{newKeyName}.pem</code> and run{" "}
                   <code className="font-mono">chmod 400 ~/.ssh/{newKeyName}.pem</code>
@@ -289,145 +296,152 @@ export default function InstanceDetailPage() {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main column */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Access */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-muted-foreground" />
+                  {isTunnel ? "Public access" : "Access"}
+                </CardTitle>
+                <CardDescription>
+                  {isTunnel
+                    ? "Routed through Cloudflare Tunnel — no ports in the URL."
+                    : isLocal
+                      ? "Local development — use localhost ports or the web terminal."
+                      : "Direct access via host ports."}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {isRunning && publicUrl ? (
+                  <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+                    <div className="flex-1 min-w-0">
+                      <CopyBlock label={isTunnel ? "URL" : "App URL"} value={publicUrl} />
+                    </div>
+                    <Button variant="outline" size="sm" asChild className="shrink-0">
+                      <a href={publicUrl} target="_blank" rel="noopener noreferrer">
+                        Open <ExternalLink className="w-3.5 h-3.5 ml-1" />
+                      </a>
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    {isRunning ? "No URL available." : "Start the instance to get the URL."}
+                  </p>
+                )}
+
+                {isTunnel && instance.baseDomain && (
+                  <p className="text-xs text-muted-foreground">
+                    Subdomain auto:{" "}
+                    <code className="font-mono">
+                      {instance.name.toLowerCase().replace(/[^a-z0-9-]/g, "-")}.{instance.baseDomain}
+                    </code>
+                    {" — "}add custom domains in{" "}
+                    <Link href="/dashboard/domains" className="underline">
+                      Domains
+                    </Link>
+                    .
+                  </p>
+                )}
+
+                {!isTunnel && isRunning && (
+                  <>
+                    <Separator />
+                    <div className="space-y-3">
+                      <p className="text-xs font-medium text-muted-foreground">Port mappings</p>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Service</TableHead>
+                            <TableHead>Address</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {localPorts.map((p) => (
+                            <TableRow key={p.name}>
+                              <TableCell className="font-medium text-sm">{p.name}</TableCell>
+                              <TableCell className="font-mono text-xs text-muted-foreground">
+                                {p.host ? `${instance.publicHost}:${p.host}` : "—"}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </>
+                )}
+
+                {isRunning && (
+                  <Button size="sm" asChild>
+                    <Link href={`/dashboard/instances/${instance.id}/console`}>
+                      <Terminal className="w-3.5 h-3.5" /> Web terminal
+                    </Link>
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* SSH — local / port mode only */}
+            {!isTunnel && (
+              <Card>
+                <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Key className="w-4 h-4 text-muted-foreground" />
+                      SSH
+                    </CardTitle>
+                    <CardDescription>Optional — web terminal is usually enough.</CardDescription>
+                  </div>
+                  <Button variant="link" size="sm" className="h-auto p-0" asChild>
+                    <Link href="/dashboard/ssh-keys">Manage keys</Link>
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  {instance.sshCommand && isRunning ? (
+                    <div className="space-y-3">
+                      <CopyBlock label="Command" value={instance.sshCommand} />
+                      {instance.sshKeyName ? (
+                        <p className="text-xs text-muted-foreground">
+                          Key: <code className="font-mono">~/.ssh/{instance.sshKeyName}.pem</code>
+                        </p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          No key linked.{" "}
+                          <Link href="/dashboard/ssh-keys" className="underline">
+                            Create one
+                          </Link>{" "}
+                          for new instances.
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      {isRunning ? "No SSH key on this instance." : "Start the instance to see the SSH command."}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Technical details — collapsed/minimal */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Server className="w-4 h-4 text-muted-foreground" />
-                  Instance details
+                  Details
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
-                  <DetailItem label="Private IPv4" value={instance.privateIp || "—"} mono={!!instance.privateIp} />
-                  <DetailItem
-                    label="Public IPv4"
-                    value={publicIp || "Not configured"}
-                    mono={!!publicIp}
-                  />
-                  <DetailItem
-                    label="Public DNS"
-                    value={instance.domains.length > 0 ? instance.domains.map((d) => d.domain).join(", ") : "—"}
-                  />
+                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
                   <DetailItem label="Container ID" value={instance.containerId?.slice(0, 12) || "—"} mono />
-                  <DetailItem label="Launched" value={new Date(instance.createdAt).toLocaleString()} />
-                  <DetailItem label="Hostname" value={`${instance.id.slice(0, 12)}-${instance.name}`} mono />
+                  <DetailItem label="Created" value={new Date(instance.createdAt).toLocaleString()} />
+                  {!isTunnel && instance.privateIp && (
+                    <DetailItem label="Internal IP" value={instance.privateIp} mono />
+                  )}
+                  {isTunnel && (
+                    <DetailItem label="Routing" value="Cloudflare Tunnel" />
+                  )}
                 </dl>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Network className="w-4 h-4 text-muted-foreground" />
-                  Networking
-                </CardTitle>
-                <CardDescription>Port mappings from host to container.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {!publicIp && instance.routingMode !== "tunnel" && (
-                  <Alert>
-                    <AlertCircle className="w-4 h-4" />
-                    <AlertTitle className="text-sm">Local development mode</AlertTitle>
-                    <AlertDescription className="text-xs">
-                      Set <code className="font-mono">PUBLIC_HOST</code> and{" "}
-                      <code className="font-mono">NEXT_PUBLIC_PUBLIC_HOST</code> for public URLs.
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                {instance.routingMode === "tunnel" && instance.suggestedDomain && (
-                  <Alert>
-                    <AlertCircle className="w-4 h-4" />
-                    <AlertTitle className="text-sm">Cloudflare Tunnel</AlertTitle>
-                    <AlertDescription className="text-xs space-y-2">
-                      <p>
-                        Public URL (no port):{" "}
-                        <code className="font-mono">https://{instance.suggestedDomain}</code>
-                      </p>
-                      <p>
-                        ZynCloud registers the tunnel route and DNS automatically when the instance
-                        starts. Each instance name becomes a subdomain under{" "}
-                        <code className="font-mono">{instance.baseDomain || "BASE_DOMAIN"}</code>{" "}
-                        (e.g. <code className="font-mono">tienda.{instance.baseDomain || "example.com"}</code>).
-                      </p>
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Service</TableHead>
-                      <TableHead>Host</TableHead>
-                      <TableHead className="text-right">Container</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {ports.map((p) => (
-                      <TableRow key={p.name}>
-                        <TableCell className="font-medium">{p.name}</TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">
-                          {p.host ? `${instance.publicHost}:${p.host}` : "—"}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs text-right text-muted-foreground">
-                          :{p.container}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-
-                {(instance.appUrl || instance.httpUrl) && isRunning && (
-                  <>
-                    <Separator />
-                    <div className="space-y-3">
-                      {instance.appUrl && <CopyBlock label="App URL" value={instance.appUrl} />}
-                      {instance.httpUrl && <CopyBlock label="HTTP URL" value={instance.httpUrl} />}
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3 flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Key className="w-4 h-4 text-muted-foreground" />
-                    SSH access
-                  </CardTitle>
-                </div>
-                <Button variant="link" size="sm" className="h-auto p-0" asChild>
-                  <Link href="/dashboard/ssh-keys">Manage keys</Link>
-                </Button>
-              </CardHeader>
-              <CardContent>
-                {instance.sshCommand && isRunning ? (
-                  <div className="space-y-3">
-                    <CopyBlock label="Connect command" value={instance.sshCommand} />
-                    {instance.sshKeyName ? (
-                      <p className="text-xs text-muted-foreground">
-                        Use <code className="font-mono">~/.ssh/{instance.sshKeyName}.pem</code>
-                      </p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">
-                        No key pair linked.{" "}
-                        <Link href="/dashboard/ssh-keys" className="underline">
-                          Create one
-                        </Link>{" "}
-                        for new instances.
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    {isRunning
-                      ? "No SSH key on this instance."
-                      : "Start the instance to see the SSH command."}
-                  </p>
-                )}
               </CardContent>
             </Card>
           </div>
@@ -475,66 +489,6 @@ export default function InstanceDetailPage() {
                 </Card>
               </Link>
             ))}
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Rocket className="w-4 h-4" />
-                  Quick deploy
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Deploy a test Node.js app on port 3000.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Button
-                  size="sm"
-                  className="w-full"
-                  disabled={deploying || !isRunning}
-                  onClick={async () => {
-                    setDeploying(true)
-                    try {
-                      const result = await api.post<{ url: string; message: string }>(
-                        `/instances/${instance.id}/deploy-test`
-                      )
-                      setDeployResult(result)
-                      toast({ title: "Deploy complete", description: result.message })
-                    } catch (err) {
-                      toast({
-                        title: "Deploy failed",
-                        description: formatApiError(err instanceof Error ? err.message : undefined),
-                        variant: "destructive",
-                      })
-                    } finally {
-                      setDeploying(false)
-                    }
-                  }}
-                >
-                  {deploying ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Deploying...
-                    </>
-                  ) : (
-                    <>
-                      <Rocket className="w-3.5 h-3.5" /> Deploy test app
-                    </>
-                  )}
-                </Button>
-                {deployResult && (
-                  <div className="rounded-md border bg-muted/40 p-3 space-y-1">
-                    <p className="text-xs font-medium">{deployResult.message}</p>
-                    <a
-                      href={deployResult.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs font-mono hover:underline"
-                    >
-                      <ExternalLink className="w-3 h-3" /> {deployResult.url}
-                    </a>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
           </div>
         </div>
 
@@ -543,8 +497,11 @@ export default function InstanceDetailPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Globe className="w-4 h-4" />
-                Domains
+                Custom domains
               </CardTitle>
+              <CardDescription>
+                {isTunnel ? "Routed via Cloudflare Tunnel — HTTPS included." : "DNS configuration required."}
+              </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
@@ -552,21 +509,32 @@ export default function InstanceDetailPage() {
                   <TableRow>
                     <TableHead>Domain</TableHead>
                     <TableHead>SSL</TableHead>
-                    <TableHead>DNS</TableHead>
+                    {!isTunnel && <TableHead>DNS</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {instance.domains.map((d) => (
                     <TableRow key={d.id}>
-                      <TableCell className="font-mono text-xs">{d.domain}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        <a
+                          href={`https://${d.domain}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline"
+                        >
+                          {d.domain}
+                        </a>
+                      </TableCell>
                       <TableCell>
                         <Badge variant={d.sslEnabled ? "success" : "muted"}>
                           {d.sslEnabled ? "Active" : "Off"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        A → {publicIp || "your public IP"}
-                      </TableCell>
+                      {!isTunnel && (
+                        <TableCell className="text-xs text-muted-foreground">
+                          A → {instance.publicHost !== "localhost" ? instance.publicHost : "your server IP"}
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>

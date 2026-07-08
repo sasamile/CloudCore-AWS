@@ -8,13 +8,16 @@ export class BackupsController {
   constructor(private backupsService: BackupsService) {}
 
   @Get()
-  findAll() {
-    return this.backupsService.findAll();
+  findAll(@CurrentUser() user: { id: string }) {
+    return this.backupsService.findAll(user.id);
   }
 
   @Get(':instanceId')
-  findByInstance(@Param('instanceId') instanceId: string) {
-    return this.backupsService.findByInstance(instanceId);
+  findByInstance(
+    @Param('instanceId') instanceId: string,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.backupsService.findByInstance(instanceId, user.id);
   }
 
   @Post(':instanceId')
@@ -31,7 +34,7 @@ export class BackupsController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.backupsService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: { id: string }) {
+    return this.backupsService.remove(id, user.id);
   }
 }

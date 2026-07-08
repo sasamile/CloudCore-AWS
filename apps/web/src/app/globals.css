@@ -109,4 +109,18 @@
       radial-gradient(ellipse 50% 40% at 0% 100%, hsl(var(--brand-teal) / 0.06), transparent 50%);
     background-size: 40px 40px, 40px 40px, auto, auto;
   }
+
+  .terminal-shell {
+    @apply w-full h-full bg-[#0a0e1a];
+  }
+
+  .terminal-shell .xterm {
+    height: 100%;
+    padding: 8px 10px;
+  }
+
+  .terminal-shell .xterm-viewport,
+  .terminal-shell .xterm-screen {
+    height: 100% !important;
+  }
 }

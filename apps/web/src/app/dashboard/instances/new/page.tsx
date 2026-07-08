@@ -96,7 +96,7 @@ export default function NewInstancePage() {
           { label: "Instances", href: "/dashboard/instances" },
         ]}
       />
-      <div className="p-6 max-w-3xl mx-auto space-y-6">
+      <div className="w-full px-4 py-6 sm:px-6 space-y-6">
         <Button variant="ghost" size="sm" asChild className="-ml-2 text-muted-foreground">
           <Link href="/dashboard/instances">
             <ArrowLeft className="w-3.5 h-3.5" /> Back to instances
