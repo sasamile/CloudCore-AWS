@@ -16,6 +16,7 @@ export interface SyncIngressResult {
   dnsRegistered: string[];
   restarted: boolean;
   cloudflareSynced: boolean;
+  cloudflareError?: string;
   hostnames: string[];
 }
 
@@ -188,14 +189,18 @@ export class TunnelService implements OnModuleInit {
     return this.runCommand(cmd, `DNS registered: ${hostname}`);
   }
 
-  private async pushIngressToCloudflare(ingress: IngressRoute[]): Promise<boolean> {
+  private async pushIngressToCloudflare(
+    ingress: IngressRoute[],
+  ): Promise<{ ok: boolean; error?: string }> {
     const token = process.env.CLOUDFLARE_API_TOKEN;
     const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
     const tunnelId = process.env.CLOUDFLARE_TUNNEL_ID;
 
     if (!token || !accountId || !tunnelId) {
-      this.logger.debug('Cloudflare API sync skipped (set CLOUDFLARE_API_TOKEN + ACCOUNT_ID + TUNNEL_ID)');
-      return false;
+      return {
+        ok: false,
+        error: 'Falta CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID o CLOUDFLARE_TUNNEL_ID en el servidor',
+      };
     }
 
     const cfIngress = ingress.map((r) =>
@@ -219,13 +224,51 @@ export class TunnelService implements OnModuleInit {
       if (!res.ok || !body.success) {
         const msg = body.errors?.map((e) => e.message).join('; ') || res.statusText;
         this.logger.warn(`Cloudflare tunnel API failed: ${msg}`);
-        return false;
+        return { ok: false, error: msg };
       }
 
       this.logger.log(`Cloudflare tunnel API updated (${cfIngress.length - 1} routes)`);
-      return true;
+      return { ok: true };
     } catch (error) {
-      this.logger.warn(`Cloudflare tunnel API error: ${(error as Error).message}`);
+      const msg = (error as Error).message;
+      this.logger.warn(`Cloudflare tunnel API error: ${msg}`);
+      return { ok: false, error: msg };
+    }
+  }
+
+  async fetchCloudflareHostnames(): Promise<string[]> {
+    const token = process.env.CLOUDFLARE_API_TOKEN;
+    const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+    const tunnelId = process.env.CLOUDFLARE_TUNNEL_ID;
+    if (!token || !accountId || !tunnelId) return [];
+
+    try {
+      const res = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${accountId}/cfd_tunnel/${tunnelId}/configurations`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      const body = (await res.json()) as {
+        success?: boolean;
+        result?: { config?: { ingress?: { hostname?: string }[] } };
+      };
+      if (!body.success || !body.result?.config?.ingress) return [];
+      return body.result.config.ingress
+        .map((r) => r.hostname)
+        .filter((h): h is string => Boolean(h));
+    } catch {
+      return [];
+    }
+  }
+
+  async isHostnameRouted(hostname: string): Promise<boolean> {
+    const cfHosts = await this.fetchCloudflareHostnames();
+    if (cfHosts.includes(hostname)) return true;
+
+    try {
+      const configPath = this.getConfigPath();
+      const content = await fs.readFile(configPath, 'utf8');
+      return content.includes(`hostname: ${hostname}`);
+    } catch {
       return false;
     }
   }
@@ -263,7 +306,8 @@ export class TunnelService implements OnModuleInit {
     const ingress = await this.buildIngressRules();
     const hostnames = this.collectHostnames(ingress);
 
-    const cloudflareSynced = await this.pushIngressToCloudflare(ingress);
+    const cfPush = await this.pushIngressToCloudflare(ingress);
+    const cloudflareSynced = cfPush.ok;
     const configPath = await this.writeLocalConfig(ingress);
 
     const dnsRegistered = cloudflareSynced
@@ -273,9 +317,9 @@ export class TunnelService implements OnModuleInit {
     const restarted =
       !cloudflareSynced && configPath ? this.restartCloudflared() : false;
 
-    if (!cloudflareSynced && dnsRegistered.length === 0 && this.getTunnelRef()) {
+    if (!cloudflareSynced && !restarted) {
       this.logger.warn(
-        'Tunnel sync fallback: set CLOUDFLARE_API_TOKEN for automatic routes (no SSH needed).',
+        `Tunnel sync failed: ${cfPush.error ?? 'unknown'}. Client DNS alone is not enough — route must be published to Cloudflare.`,
       );
     }
 
@@ -285,6 +329,7 @@ export class TunnelService implements OnModuleInit {
       dnsRegistered,
       restarted,
       cloudflareSynced,
+      cloudflareError: cfPush.error,
       hostnames,
     };
   }

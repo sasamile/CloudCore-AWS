@@ -27,27 +27,43 @@ export class DomainsService {
 
     if (!this.tunnel.isTunnelMode()) return domains;
 
-    const configPath = process.env.CLOUDFLARED_CONFIG_PATH || '/etc/cloudflared/config.yml';
-    let ingress = '';
-    try {
-      ingress = await fsp.readFile(configPath, 'utf8');
-    } catch {
-      ingress = '';
-    }
-
     const cnameTarget = process.env.CLOUDFLARE_TUNNEL_ID
       ? `${process.env.CLOUDFLARE_TUNNEL_ID}.cfargotunnel.com`
       : null;
 
-    return domains.map((d) => ({
-      ...d,
-      routeActive:
-        ingress.includes(`hostname: ${d.domain}`) ||
-        ingress.includes(`"${d.domain}"`),
-      clientDns: cnameTarget
-        ? { type: 'CNAME', name: d.domain.split('.')[0], target: cnameTarget }
-        : null,
-    }));
+    const cfHostnames = await this.tunnel.fetchCloudflareHostnames();
+
+    return Promise.all(
+      domains.map(async (d) => ({
+        ...d,
+        routeActive: cfHostnames.includes(d.domain) || (await this.tunnel.isHostnameRouted(d.domain)),
+        cloudflareActive: cfHostnames.includes(d.domain),
+        clientDns: cnameTarget
+          ? { type: 'CNAME', name: d.domain.split('.')[0], target: cnameTarget }
+          : null,
+      })),
+    );
+  }
+
+  async syncTunnel(userId: string) {
+    if (!this.tunnel.isTunnelMode()) {
+      return { ok: false, error: 'Tunnel mode is not enabled' };
+    }
+
+    const sync = await this.tunnel.syncIngress();
+    const domains = await this.prisma.domain.findMany({ where: { userId } });
+    const cfHostnames = await this.tunnel.fetchCloudflareHostnames();
+
+    return {
+      ok: sync.cloudflareSynced || sync.restarted,
+      cloudflareSynced: sync.cloudflareSynced,
+      cloudflareError: sync.cloudflareError,
+      routeCount: sync.routeCount,
+      domains: domains.map((d) => ({
+        domain: d.domain,
+        active: cfHostnames.includes(d.domain),
+      })),
+    };
   }
 
   async create(userId: string, data: { domain: string; targetPort?: number; instanceId: string }) {
@@ -56,8 +72,10 @@ export class DomainsService {
     });
     if (!instance) throw new NotFoundException('Instancia no encontrada');
 
-    const targetPort = data.targetPort ?? instance.internalPort;
-    if (!targetPort) throw new ConflictException('La instancia no tiene puerto asignado');
+    if (!instance.internalPort) throw new ConflictException('La instancia no tiene puerto asignado');
+
+    // Siempre puerto del HOST (ej. 10002), no el 3000 del contenedor
+    const targetPort = instance.internalPort;
 
     const domain = await this.prisma.domain.create({
       data: {

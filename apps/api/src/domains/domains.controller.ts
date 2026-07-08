@@ -32,6 +32,11 @@ export class DomainsController {
     return this.domainsService.getTunnelStatus();
   }
 
+  @Post('sync-tunnel')
+  syncTunnel(@CurrentUser() user: { id: string }) {
+    return this.domainsService.syncTunnel(user.id);
+  }
+
   @Post()
   create(@CurrentUser() user: { id: string }, @Body() dto: CreateDomainDto) {
     return this.domainsService.create(user.id, dto);

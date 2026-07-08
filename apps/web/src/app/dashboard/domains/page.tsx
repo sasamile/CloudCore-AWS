@@ -120,7 +120,41 @@ export default function DomainsPage() {
     fetchDomains()
   }
 
-  const filtered = domains.filter((d) => d.domain.toLowerCase().includes(search.toLowerCase()))
+  const [syncing, setSyncing] = useState(false)
+
+  async function handleSyncTunnel() {
+    setSyncing(true)
+    try {
+      const result = await api.post<{
+        ok: boolean
+        cloudflareSynced: boolean
+        cloudflareError?: string
+        domains?: { domain: string; active: boolean }[]
+      }>("/domains/sync-tunnel")
+      fetchDomains()
+      if (result.cloudflareSynced) {
+        toast({
+          title: "Rutas publicadas en Cloudflare",
+          description: "Espera 1–2 min y prueba tu dominio.",
+        })
+      } else {
+        toast({
+          title: "No se pudo publicar al túnel",
+          description: result.cloudflareError ?? "El servidor necesita CLOUDFLARE_API_TOKEN válido.",
+          variant: "destructive",
+        })
+      }
+    } catch {
+      toast({ title: "Error al sincronizar", variant: "destructive" })
+    }
+    setSyncing(false)
+  }
+
+  function onInstanceChange(id: string) {
+    setInstanceId(id)
+    const inst = instances.find((i) => i.id === id)
+    if (inst?.internalPort) setTargetPort(inst.internalPort)
+  }
   const inputCls =
     "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
   const isTunnel = tunnel?.mode === "tunnel"
@@ -137,11 +171,10 @@ export default function DomainsPage() {
 
           {isTunnel ? (
             <div className="text-xs text-muted-foreground space-y-3">
-              <p className="text-foreground font-medium">Solo 1 paso en ZynCloud — sin acceso al servidor:</p>
+              <p className="text-foreground font-medium">2 pasos — tú no tocas el servidor:</p>
               <ol className="list-decimal list-inside space-y-1">
-                {(tunnel?.clientSteps ?? []).map((step) => (
-                  <li key={step}>{step}</li>
-                ))}
+                <li>ZynCloud → Domains → agrega dominio + instancia → pulsa <strong>Publicar rutas</strong></li>
+                <li>En TU Cloudflare: CNAME → <code className="font-mono">{tunnel?.cnameTarget ?? "....cfargotunnel.com"}</code></li>
               </ol>
 
               <div className="rounded-md border bg-background p-3 space-y-2">
@@ -174,10 +207,8 @@ export default function DomainsPage() {
                     <div>
                       Target: <strong className="break-all">{tunnel.cnameTarget ?? tunnel.dnsExample.target}</strong>
                     </div>
-                    <p className="font-sans text-muted-foreground">{tunnel.dnsExample.note}</p>
-                    <p className="font-sans text-amber-600 font-medium text-xs mt-1">
-                      Si tienes &quot;Tunnel → zyncloud&quot; en tu Cloudflare, bórralo. Ese túnel es de otra
-                      cuenta y da error 404.
+                    <p className="font-sans text-muted-foreground">
+                      En la lista DNS, Cloudflare puede mostrar &quot;Tunnel → zyncloud&quot; aunque sea CNAME. Eso está bien.
                     </p>
                   </div>
                 )}
@@ -226,21 +257,20 @@ export default function DomainsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Target port</label>
+                  <label className="text-sm font-medium">Host port (auto)</label>
                   <input
                     type="number"
                     value={targetPort}
-                    onChange={(e) => setTargetPort(Number(e.target.value))}
-                    className={inputCls}
-                    min={1}
-                    max={65535}
+                    readOnly
+                    className={`${inputCls} bg-muted/50`}
+                    title="Puerto en el servidor, asignado automáticamente"
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Instance</label>
                   <select
                     value={instanceId}
-                    onChange={(e) => setInstanceId(e.target.value)}
+                    onChange={(e) => onInstanceChange(e.target.value)}
                     className={inputCls}
                     required
                   >
@@ -277,6 +307,16 @@ export default function DomainsPage() {
           <div className="flex items-center justify-between px-4 py-3 border-b">
             <h2 className="text-sm font-medium">Domains ({filtered.length})</h2>
             <div className="flex items-center gap-2">
+              {isTunnel && (
+                <button
+                  onClick={handleSyncTunnel}
+                  disabled={syncing}
+                  className="inline-flex items-center justify-center rounded-md text-sm font-medium border bg-background hover:bg-accent h-8 px-3 gap-1.5 disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
+                  {syncing ? "Publicando..." : "Publicar rutas"}
+                </button>
+              )}
               <button
                 onClick={() => {
                   fetchDomains()
@@ -356,10 +396,10 @@ export default function DomainsPage() {
                           <span className="text-xs text-muted-foreground">—</span>
                         ) : d.routeActive ? (
                           <span className="inline-flex items-center gap-1 text-xs font-medium text-green-600">
-                            <CheckCircle2 className="w-3 h-3" /> Servidor OK
+                            <CheckCircle2 className="w-3 h-3" /> En Cloudflare
                           </span>
                         ) : (
-                          <span className="text-xs text-amber-600">Pendiente</span>
+                          <span className="text-xs text-amber-600">Pulsa Publicar rutas</span>
                         )}
                       </td>
                       <td className="p-4">
