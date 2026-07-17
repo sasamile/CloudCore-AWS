@@ -12,6 +12,9 @@ import { Logger } from '@nestjs/common';
 
 @WebSocketGateway({
   cors: { origin: '*' },
+  // Terminal = muchos mensajes pequenos: sin compresion baja la latencia por frame.
+  perMessageDeflate: false,
+  httpCompression: false,
 })
 export class InstancesGateway {
   @WebSocketServer()
@@ -46,8 +49,23 @@ export class InstancesGateway {
       const key = `${client.id}:${data.instanceId}`;
       this.terminalStreams.set(key, stream);
 
+      // Coalesce de chunks del mismo tick -> menos frames WebSocket en rafagas.
+      let outBuf = '';
+      let scheduled = false;
+      const flush = () => {
+        scheduled = false;
+        if (!outBuf) return;
+        const chunk = outBuf;
+        outBuf = '';
+        client.emit('terminal:output', chunk);
+      };
       stream.on('data', (chunk: Buffer) => {
-        client.emit('terminal:output', chunk.toString('utf8'));
+        outBuf += chunk.toString('utf8');
+        if (outBuf.length >= 64 * 1024) return flush();
+        if (!scheduled) {
+          scheduled = true;
+          setImmediate(flush);
+        }
       });
 
       stream.on('end', () => {

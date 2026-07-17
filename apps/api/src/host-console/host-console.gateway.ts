@@ -11,7 +11,12 @@ import { Logger, UseGuards } from '@nestjs/common';
 import { HostConsoleService, HostConsoleSession } from './host-console.service';
 import { WsJwtGuard } from '../auth/ws-jwt.guard';
 
-@WebSocketGateway({ cors: { origin: '*' } })
+@WebSocketGateway({
+  cors: { origin: '*' },
+  // Terminal = muchos mensajes pequenos: sin compresion se reduce la latencia por frame.
+  perMessageDeflate: false,
+  httpCompression: false,
+})
 export class HostConsoleGateway implements OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;

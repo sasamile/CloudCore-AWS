@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import { readFileSync } from 'fs';
+import { connect as netConnect } from 'net';
 import { Client, ClientChannel } from 'ssh2';
 
 export interface HostConsoleSession {
@@ -9,6 +10,36 @@ export interface HostConsoleSession {
   close: () => void;
   onData: (cb: (data: string) => void) => void;
   onClose: (cb: () => void) => void;
+}
+
+/**
+ * Coalesce de salida: junta los chunks que llegan en el mismo tick del event loop
+ * en un solo callback. Reduce drasticamente el numero de frames WebSocket en rafagas
+ * (ej. `ls -R`, `cat archivo_grande`) sin anadir latencia perceptible al eco de teclas
+ * (un chunk solitario se entrega en el siguiente microtick, ~0 ms).
+ */
+function createOutputBatcher(deliver: () => ((d: string) => void) | null) {
+  let buffer = '';
+  let scheduled = false;
+  const flush = () => {
+    scheduled = false;
+    if (!buffer) return;
+    const chunk = buffer;
+    buffer = '';
+    deliver()?.(chunk);
+  };
+  return (data: string) => {
+    buffer += data;
+    // Flush inmediato si el buffer crece mucho (evita retener rafagas grandes).
+    if (buffer.length >= 64 * 1024) {
+      flush();
+      return;
+    }
+    if (!scheduled) {
+      scheduled = true;
+      setImmediate(flush);
+    }
+  };
 }
 
 @Injectable()
@@ -54,9 +85,10 @@ export class HostConsoleService {
 
     let dataCb: ((d: string) => void) | null = null;
     let closeCb: (() => void) | null = null;
+    const push = createOutputBatcher(() => dataCb);
 
-    child.stdout.on('data', (chunk: Buffer) => dataCb?.(chunk.toString('utf8')));
-    child.stderr.on('data', (chunk: Buffer) => dataCb?.(chunk.toString('utf8')));
+    child.stdout.on('data', (chunk: Buffer) => push(chunk.toString('utf8')));
+    child.stderr.on('data', (chunk: Buffer) => push(chunk.toString('utf8')));
     child.on('close', () => closeCb?.());
 
     this.logger.log(`Local host console started (${shell})`);
@@ -87,8 +119,32 @@ export class HostConsoleService {
       let stream: ClientChannel | null = null;
       let dataCb: ((d: string) => void) | null = null;
       let closeCb: (() => void) | null = null;
+      const push = createOutputBatcher(() => dataCb);
 
-      const config: Record<string, unknown> = { host, port, username };
+      // Socket TCP propio con Nagle desactivado: cada tecla viaja de inmediato
+      // en vez de esperar ~40 ms el ACK anterior. Es la mejora clave de latencia.
+      const tcp = netConnect({ host, port });
+      tcp.setNoDelay(true);
+      tcp.on('error', (err: NodeJS.ErrnoException) => {
+        if (err.code === 'ECONNREFUSED') {
+          reject(
+            new Error(
+              `SSH rechazado en ${host}:${port}. ¿Está openssh-server activo? (sudo apt install openssh-server && sudo systemctl enable --now ssh). Usa HOST_CONSOLE_SSH_HOST=host.docker.internal en .env`,
+            ),
+          );
+        } else {
+          reject(err);
+        }
+      });
+
+      const config: Record<string, unknown> = {
+        sock: tcp, // ssh2 usa este socket (con TCP_NODELAY) en lugar de crear el suyo
+        host,
+        port,
+        username,
+        keepaliveInterval: 15000, // mantiene la conexion "caliente"
+        keepaliveCountMax: 3,
+      };
 
       if (keyPath) {
         try {
@@ -123,7 +179,7 @@ export class HostConsoleService {
               }
               stream = shellStream;
               shellStream.on('data', (chunk: Buffer) =>
-                dataCb?.(chunk.toString('utf8')),
+                push(chunk.toString('utf8')),
               );
               shellStream.on('close', () => {
                 closeCb?.();

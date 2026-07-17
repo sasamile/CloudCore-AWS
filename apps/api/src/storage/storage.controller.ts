@@ -14,7 +14,8 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { StorageService } from './storage.service';
-import { JwtAuthGuard, CurrentUser } from '../auth/auth.guard';
+import { CurrentUser } from '../auth/auth.guard';
+import { StorageAuthGuard } from '../zynauth/credentials/storage-auth.guard';
 import { IsString, MinLength } from 'class-validator';
 
 class CreateBucketDto {
@@ -29,7 +30,7 @@ class UploadMetaDto {
 }
 
 @Controller('storage')
-@UseGuards(JwtAuthGuard)
+@UseGuards(StorageAuthGuard)
 export class StorageController {
   constructor(private storage: StorageService) {}
 

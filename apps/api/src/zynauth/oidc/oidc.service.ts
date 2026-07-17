@@ -63,6 +63,27 @@ export class OidcService {
   async verifySessionToken(token: string): Promise<string | null> {
     try {
       const { payload } = await jwtVerify(token, sessionSecret());
+      if (payload.typ && payload.typ !== 'zynauth-session') return null;
+      return typeof payload.sub === 'string' ? payload.sub : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Ticket efimero entre "password OK" y "verifica tu 2FA". Vive 5 min. */
+  async createMfaTicket(userId: string): Promise<string> {
+    return new SignJWT({ typ: 'zynauth-mfa' })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject(userId)
+      .setIssuedAt()
+      .setExpirationTime('5m')
+      .sign(sessionSecret());
+  }
+
+  async verifyMfaTicket(token: string): Promise<string | null> {
+    try {
+      const { payload } = await jwtVerify(token, sessionSecret());
+      if (payload.typ !== 'zynauth-mfa') return null;
       return typeof payload.sub === 'string' ? payload.sub : null;
     } catch {
       return null;

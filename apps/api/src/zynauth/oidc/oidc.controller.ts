@@ -12,8 +12,11 @@ import {
 import type { Request, Response } from 'express';
 import { OidcService, type AuthorizeParams } from './oidc.service';
 import { OAuthClientService } from '../clients/oauth-client.service';
+import { MfaService } from '../mfa/mfa.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { ZYNAUTH } from '../zynauth.config';
 import { renderLoginPage } from './login-page';
+import { renderMfaPage } from './mfa-page';
 
 function parseCookies(header?: string): Record<string, string> {
   const out: Record<string, string> = {};
@@ -45,6 +48,8 @@ export class OidcController {
   constructor(
     private readonly oidc: OidcService,
     private readonly clients: OAuthClientService,
+    private readonly mfa: MfaService,
+    private readonly prisma: PrismaService,
   ) {}
 
   // ---- GET /oauth2/authorize -------------------------------------------------
@@ -92,7 +97,52 @@ export class OidcController {
         .send(renderLoginPage({ params: body, error: 'Credenciales invalidas' }));
     }
 
-    const session = await this.oidc.createSessionToken(user.id);
+    // Segundo factor: si el usuario tiene MFA, pedimos el codigo antes de crear sesion.
+    if (user.mfaEnabled) {
+      const ticket = await this.oidc.createMfaTicket(user.id);
+      return res
+        .status(200)
+        .type('html')
+        .send(renderMfaPage({ params: body, ticket, error: null }));
+    }
+
+    return this.completeLogin(res, user.id, params, body);
+  }
+
+  // ---- POST /oauth2/mfa (segundo paso) --------------------------------------
+  @Post('mfa')
+  async mfaStep(@Body() body: Record<string, string>, @Res() res: Response) {
+    const params = await this.validateAuthorize(body);
+    const userId = await this.oidc.verifyMfaTicket(body.mfa_ticket ?? '');
+    if (!userId) {
+      return res
+        .status(200)
+        .type('html')
+        .send(renderLoginPage({ params: body, error: 'La sesion de verificacion expiro, inicia de nuevo' }));
+    }
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return res.status(200).type('html').send(renderLoginPage({ params: body, error: 'Usuario no encontrado' }));
+    }
+    const ok = await this.mfa.verifyForUser(user, body.code ?? '');
+    if (!ok) {
+      const ticket = await this.oidc.createMfaTicket(user.id);
+      return res
+        .status(200)
+        .type('html')
+        .send(renderMfaPage({ params: body, ticket, error: 'Codigo invalido' }));
+    }
+    return this.completeLogin(res, user.id, params, body);
+  }
+
+  /** Crea la cookie SSO, emite el code y redirige a la app. */
+  private async completeLogin(
+    res: Response,
+    userId: string,
+    params: AuthorizeParams,
+    rawParams: Record<string, string>,
+  ) {
+    const session = await this.oidc.createSessionToken(userId);
     res.cookie(ZYNAUTH.sessionCookie, session, {
       httpOnly: true,
       sameSite: 'lax',
@@ -100,9 +150,8 @@ export class OidcController {
       maxAge: ZYNAUTH.ttl.sessionSeconds * 1000,
       path: '/',
     });
-
-    const code = await this.oidc.createAuthCode(user.id, params);
-    return res.redirect(this.buildRedirect(params.redirectUri, { code, state: params.state }));
+    const code = await this.oidc.createAuthCode(userId, params);
+    return res.redirect(this.buildRedirect(params.redirectUri, { code, state: rawParams.state }));
   }
 
   // ---- POST /oauth2/token ----------------------------------------------------

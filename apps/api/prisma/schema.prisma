@@ -30,6 +30,43 @@ model User {
   oauthClients OAuthClient[]
   authCodes    AuthCode[]
   refreshTokens OidcRefreshToken[]
+  accessKeys   AccessKey[]
+  databases    Database[]
+}
+
+/// Base de datos gestionada (DBaaS): un database + rol dedicados en el Postgres gestionado.
+model Database {
+  id          String   @id @default(cuid())
+  name        String                 // nombre visible que elige el usuario
+  dbName      String   @unique       // nombre real en el servidor Postgres
+  username    String                 // rol dedicado
+  passwordEnc String                 // contrasena del rol, cifrada
+  host        String
+  port        Int      @default(5432)
+  status      String   @default("creating") // creating | ready | error | deleting
+  error       String?
+  createdAt   DateTime @default(now())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Credencial de maquina (Access Key / Secret) para el SDK @zyncloud/storage y APIs.
+/// El secret se guarda cifrado (reversible) porque se necesita para verificar el HMAC.
+model AccessKey {
+  id          String    @id @default(cuid())
+  accessKeyId String    @unique
+  secretEnc   String
+  label       String
+  scopes      String    @default("storage") // csv: storage,db,...
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 /// App registrada que puede autenticar usuarios via ZynAuth (equivalente a un "App Client" de Cognito).

@@ -1,0 +1,14 @@
+{
+  "name": "@zyncloud/storage",
+  "version": "0.1.0",
+  "description": "SDK oficial del object storage de ZynCloud (Access Key/Secret, firma ZYN1)",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "type": "module",
+  "scripts": {
+    "lint": "echo 'no lint configured'"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@zyncloud/mcp",
+  "version": "0.1.0",
+  "description": "Servidor MCP para exponer la infraestructura de ZynCloud a agentes IA",
+  "type": "module",
+  "bin": {
+    "zyncloud-mcp": "./src/index.ts"
+  },
+  "main": "./src/index.ts",
+  "scripts": {
+    "start": "node --experimental-strip-types src/index.ts",
+    "lint": "echo 'no lint configured'"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

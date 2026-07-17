@@ -14,6 +14,11 @@ import {
   Monitor,
   BookOpen,
   Rocket,
+  ShieldCheck,
+  KeyRound,
+  Boxes,
+  Cylinder,
+  Plug,
   type LucideIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -32,17 +37,27 @@ export const navSections: {
     items: [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }],
   },
   {
+    label: "Identity",
+    items: [
+      { href: "/dashboard/security", label: "Security (MFA)", icon: ShieldCheck },
+      { href: "/dashboard/access-keys", label: "Access Keys", icon: KeyRound },
+      { href: "/dashboard/apps", label: "Apps (ZynAuth)", icon: Boxes },
+    ],
+  },
+  {
     label: "Compute",
     items: [
       { href: "/dashboard/instances", label: "Instances", icon: Server },
       { href: "/dashboard/integrations", label: "Deploy", icon: Rocket },
+      { href: "/dashboard/deployments", label: "Auto-Deploy", icon: Rocket },
       { href: "/dashboard/ssh-keys", label: "Key Pairs", icon: Key },
     ],
   },
   {
-    label: "Storage",
+    label: "Data",
     items: [
       { href: "/dashboard/storage", label: "Object Storage", icon: Database },
+      { href: "/dashboard/databases", label: "Databases", icon: Cylinder },
       { href: "/dashboard/storage/docs", label: "API Docs", icon: BookOpen },
       { href: "/dashboard/backups", label: "Snapshots", icon: HardDrive },
     ],
@@ -54,6 +69,7 @@ export const navSections: {
   {
     label: "System",
     items: [
+      { href: "/dashboard/mcp", label: "MCP Server", icon: Plug },
       { href: "/dashboard/host-console", label: "Server Console", icon: Monitor },
       { href: "/dashboard/settings", label: "Settings", icon: Settings },
     ],

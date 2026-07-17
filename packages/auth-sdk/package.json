@@ -1,0 +1,17 @@
+{
+  "name": "@zyncloud/auth",
+  "version": "0.1.0",
+  "description": "SDK cliente OIDC para autenticar apps contra ZynAuth (el Cognito de Zyntek)",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "type": "module",
+  "scripts": {
+    "lint": "echo 'no lint configured'"
+  },
+  "dependencies": {
+    "jose": "^5.9.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -123,6 +123,34 @@ export class DockerService {
     });
   }
 
+  /** Ejecuta un script bash dentro del contenedor y devuelve stdout+stderr. Para builds/deploys. */
+  async runScript(
+    containerId: string,
+    script: string,
+    timeoutMs = 10 * 60 * 1000,
+  ): Promise<{ output: string; timedOut: boolean }> {
+    const container = this.docker.getContainer(containerId);
+    const exec = await container.exec({
+      Cmd: ['bash', '-lc', script],
+      AttachStdout: true,
+      AttachStderr: true,
+      Tty: false,
+    });
+    const stream = await exec.start({ Detach: false, Tty: false });
+    return new Promise((resolve) => {
+      const chunks: Buffer[] = [];
+      let done = false;
+      const finish = (timedOut: boolean) => {
+        if (done) return;
+        done = true;
+        resolve({ output: Buffer.concat(chunks).toString('utf8'), timedOut });
+      };
+      stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+      stream.on('end', () => finish(false));
+      setTimeout(() => finish(true), timeoutMs);
+    });
+  }
+
   async attachToContainer(containerId: string) {
     const container = this.docker.getContainer(containerId);
     const exec = await container.exec({

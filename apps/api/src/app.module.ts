@@ -13,6 +13,8 @@ import { HostConsoleModule } from './host-console/host-console.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { AiModule } from './ai/ai.module';
 import { ZynAuthModule } from './zynauth/zynauth.module';
+import { DatabasesModule } from './databases/databases.module';
+import { DeploymentsModule } from './deployments/deployments.module';
 
 @Module({
   imports: [
@@ -30,6 +32,8 @@ import { ZynAuthModule } from './zynauth/zynauth.module';
     IntegrationsModule,
     AiModule,
     ZynAuthModule,
+    DatabasesModule,
+    DeploymentsModule,
   ],
 })
 export class AppModule {}

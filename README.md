@@ -24,6 +24,10 @@
 
 ZynCloud es una plataforma de gestión de infraestructura que corre en tu propio servidor. Permite crear y administrar **instancias Ubuntu en Docker**, asignar **dominios personalizados** vía Cloudflare Tunnel, gestionar **almacenamiento de objetos estilo S3**, hacer **snapshots**, conectar una **consola web interactiva** y **desplegar aplicaciones desde GitHub** — todo desde un dashboard moderno inspirado en AWS Console y Vercel.
 
+> **Plataforma para tus apps (como AWS):** ZynCloud además expone servicios reutilizables por cualquier app tuya (orbidev, etc.):
+> **ZynAuth** (identidad OIDC ≈ Cognito, con MFA), **object storage** con SDK `@zyncloud/storage`, **bases de datos gestionadas** (DBaaS), **auto-deploy** por instancia y un **servidor MCP** para agentes IA.
+> 👉 Guía de integración: [`GUIA-APPS.md`](GUIA-APPS.md) · Detalle de ZynAuth: [`apps/api/src/zynauth/README.md`](apps/api/src/zynauth/README.md)
+
 Ideal para:
 
 - Desarrolladores que quieren su propio PaaS en casa o en un VPS
