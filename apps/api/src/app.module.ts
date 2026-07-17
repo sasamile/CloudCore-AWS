@@ -12,6 +12,7 @@ import { StorageModule } from './storage/storage.module';
 import { HostConsoleModule } from './host-console/host-console.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { AiModule } from './ai/ai.module';
+import { ZynAuthModule } from './zynauth/zynauth.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { AiModule } from './ai/ai.module';
     HostConsoleModule,
     IntegrationsModule,
     AiModule,
+    ZynAuthModule,
   ],
 })
 export class AppModule {}

@@ -12,13 +12,95 @@ model User {
   email        String               @unique
   password     String?
   name         String
+  emailVerified Boolean             @default(false)
+  picture      String?
   createdAt    DateTime             @default(now())
+  // --- MFA / seguridad (ZynAuth) ---
+  mfaEnabled   Boolean              @default(false)
+  mfaSecretEnc String?              // TOTP secret cifrado
+  mfaBackupCodes String?            // JSON de hashes de codigos de respaldo
+  failedLoginAttempts Int           @default(0)
+  lockedUntil  DateTime?
   instances    Instance[]
   domains      Domain[]
   sshKeys      SshKey[]
   buckets      StorageBucket[]
   integrations IntegrationAccount[]
   deployments  Deployment[]
+  oauthClients OAuthClient[]
+  authCodes    AuthCode[]
+  refreshTokens OidcRefreshToken[]
+}
+
+/// App registrada que puede autenticar usuarios via ZynAuth (equivalente a un "App Client" de Cognito).
+model OAuthClient {
+  id              String    @id @default(cuid())
+  clientId        String    @unique
+  clientSecretEnc String?               // null = cliente publico (solo PKCE)
+  name            String
+  redirectUris    String                // JSON array de URIs permitidas
+  postLogoutUris  String    @default("[]")
+  allowedScopes   String    @default("openid profile email offline_access")
+  grantTypes      String    @default("authorization_code,refresh_token")
+  isPublic        Boolean   @default(false)
+  requirePkce     Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  ownerId         String?
+  owner           User?     @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  authCodes       AuthCode[]
+  refreshTokens   OidcRefreshToken[]
+
+  @@index([ownerId])
+}
+
+/// Codigo de autorizacion de corta vida (flow authorization_code + PKCE).
+model AuthCode {
+  code                String   @id
+  clientId            String
+  redirectUri         String
+  scope               String
+  nonce               String?
+  codeChallenge       String?
+  codeChallengeMethod String?
+  expiresAt           DateTime
+  consumedAt          DateTime?
+  createdAt           DateTime @default(now())
+  userId              String
+  user                User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  oauthClientId       String
+  client              OAuthClient @relation(fields: [oauthClientId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+/// Refresh token OIDC (rotacion). Se guarda solo el hash.
+model OidcRefreshToken {
+  id            String    @id @default(cuid())
+  tokenHash     String    @unique
+  scope         String
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  rotatedTo     String?               // id del token que lo reemplazo
+  createdAt     DateTime  @default(now())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  oauthClientId String
+  client        OAuthClient @relation(fields: [oauthClientId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+/// Par de claves RSA para firmar tokens (rotables). La privada se guarda cifrada.
+model SigningKey {
+  id            String   @id @default(cuid())
+  kid           String   @unique
+  publicJwk     String                // JWK publico (JSON) expuesto en /jwks.json
+  privatePemEnc String                // clave privada PEM cifrada
+  algorithm     String   @default("RS256")
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
 }
 
 model IntegrationAccount {
