@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -15,9 +16,38 @@ export interface RegisterClientInput {
   isPublic?: boolean; // SPA / mobile => solo PKCE, sin secret
 }
 
+export interface UpdateClientInput {
+  name?: string;
+  redirectUris?: string[];
+  postLogoutUris?: string[];
+  allowedScopes?: string[];
+}
+
 @Injectable()
 export class OAuthClientService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private mapClient(c: {
+    id: string;
+    clientId: string;
+    name: string;
+    redirectUris: string;
+    postLogoutUris: string;
+    allowedScopes: string;
+    isPublic: boolean;
+    createdAt: Date;
+  }) {
+    return {
+      id: c.id,
+      clientId: c.clientId,
+      name: c.name,
+      redirectUris: JSON.parse(c.redirectUris) as string[],
+      postLogoutUris: JSON.parse(c.postLogoutUris) as string[],
+      allowedScopes: c.allowedScopes.split(' ').filter(Boolean),
+      isPublic: c.isPublic,
+      createdAt: c.createdAt,
+    };
+  }
 
   /** Registra una app y devuelve client_id + client_secret (el secret solo se muestra aqui). */
   async register(ownerId: string | null, input: RegisterClientInput) {
@@ -59,15 +89,47 @@ export class OAuthClientService {
       where: { ownerId },
       orderBy: { createdAt: 'desc' },
     });
-    return clients.map((c) => ({
-      id: c.id,
-      clientId: c.clientId,
-      name: c.name,
-      redirectUris: JSON.parse(c.redirectUris) as string[],
-      allowedScopes: c.allowedScopes.split(' '),
-      isPublic: c.isPublic,
-      createdAt: c.createdAt,
-    }));
+    return clients.map((c) => this.mapClient(c));
+  }
+
+  private async getOwnedOrThrow(ownerId: string, id: string) {
+    const client = await this.prisma.oAuthClient.findFirst({
+      where: { id, ownerId },
+    });
+    if (!client) throw new NotFoundException('App no encontrada');
+    return client;
+  }
+
+  async updateForOwner(ownerId: string, id: string, input: UpdateClientInput) {
+    await this.getOwnedOrThrow(ownerId, id);
+
+    if (input.redirectUris !== undefined && input.redirectUris.length === 0) {
+      throw new BadRequestException('Se requiere al menos una redirect URI');
+    }
+
+    const updated = await this.prisma.oAuthClient.update({
+      where: { id },
+      data: {
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.redirectUris !== undefined
+          ? { redirectUris: JSON.stringify(input.redirectUris) }
+          : {}),
+        ...(input.postLogoutUris !== undefined
+          ? { postLogoutUris: JSON.stringify(input.postLogoutUris) }
+          : {}),
+        ...(input.allowedScopes !== undefined
+          ? { allowedScopes: input.allowedScopes.join(' ') }
+          : {}),
+      },
+    });
+
+    return this.mapClient(updated);
+  }
+
+  async deleteForOwner(ownerId: string, id: string) {
+    await this.getOwnedOrThrow(ownerId, id);
+    await this.prisma.oAuthClient.delete({ where: { id } });
+    return { ok: true };
   }
 
   async findByClientId(clientId: string) {

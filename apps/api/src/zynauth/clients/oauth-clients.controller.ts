@@ -2,7 +2,10 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
+  Delete,
   Body,
+  Param,
   UseGuards,
 } from '@nestjs/common';
 import { IsArray, IsBoolean, IsOptional, IsString, MinLength } from 'class-validator';
@@ -33,6 +36,28 @@ class RegisterClientDto {
   isPublic?: boolean;
 }
 
+class UpdateClientDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  name?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  redirectUris?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  postLogoutUris?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  allowedScopes?: string[];
+}
+
 /**
  * Panel de administracion de apps registradas en ZynAuth.
  * Un usuario logueado en ZynCloud registra sus apps (orbidev, etc.) y obtiene
@@ -54,5 +79,19 @@ export class OAuthClientsController {
   @Get()
   list(@CurrentUser() user: { id: string }) {
     return this.clients.listForOwner(user.id);
+  }
+
+  @Patch(':id')
+  update(
+    @CurrentUser() user: { id: string },
+    @Param('id') id: string,
+    @Body() dto: UpdateClientDto,
+  ) {
+    return this.clients.updateForOwner(user.id, id, dto);
+  }
+
+  @Delete(':id')
+  remove(@CurrentUser() user: { id: string }, @Param('id') id: string) {
+    return this.clients.deleteForOwner(user.id, id);
   }
 }
