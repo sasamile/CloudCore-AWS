@@ -5,6 +5,10 @@
 export function getIssuer(): string {
   const explicit = process.env.ZYNAUTH_ISSUER?.trim();
   if (explicit) return explicit.replace(/\/+$/, '');
+  // Fallback prod: si no se definió ZYNAUTH_ISSUER, derivar del host público de la API
+  // (Cloudflare Tunnel) para no exponer "localhost" como issuer en producción.
+  const apiHost = process.env.TUNNEL_API_HOST?.trim();
+  if (apiHost) return `https://${apiHost.replace(/^https?:\/\//, '').replace(/\/+$/, '')}`;
   const port = process.env.PORT || process.env.API_PORT || '4000';
   return `http://localhost:${port}`;
 }

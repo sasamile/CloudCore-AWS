@@ -8,38 +8,6 @@ ADD COLUMN     "mfaSecretEnc" TEXT,
 ADD COLUMN     "picture" TEXT;
 
 -- CreateTable
-CREATE TABLE "Database" (
-    "id" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "dbName" TEXT NOT NULL,
-    "username" TEXT NOT NULL,
-    "passwordEnc" TEXT NOT NULL,
-    "host" TEXT NOT NULL,
-    "port" INTEGER NOT NULL DEFAULT 5432,
-    "status" TEXT NOT NULL DEFAULT 'creating',
-    "error" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "userId" TEXT NOT NULL,
-
-    CONSTRAINT "Database_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "AccessKey" (
-    "id" TEXT NOT NULL,
-    "accessKeyId" TEXT NOT NULL,
-    "secretEnc" TEXT NOT NULL,
-    "label" TEXT NOT NULL,
-    "scopes" TEXT NOT NULL DEFAULT 'storage',
-    "lastUsedAt" TIMESTAMP(3),
-    "revokedAt" TIMESTAMP(3),
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "userId" TEXT NOT NULL,
-
-    CONSTRAINT "AccessKey_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "OAuthClient" (
     "id" TEXT NOT NULL,
     "clientId" TEXT NOT NULL,
@@ -105,18 +73,6 @@ CREATE TABLE "SigningKey" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Database_dbName_key" ON "Database"("dbName");
-
--- CreateIndex
-CREATE INDEX "Database_userId_idx" ON "Database"("userId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "AccessKey_accessKeyId_key" ON "AccessKey"("accessKeyId");
-
--- CreateIndex
-CREATE INDEX "AccessKey_userId_idx" ON "AccessKey"("userId");
-
--- CreateIndex
 CREATE UNIQUE INDEX "OAuthClient_clientId_key" ON "OAuthClient"("clientId");
 
 -- CreateIndex
@@ -136,12 +92,6 @@ CREATE INDEX "OidcRefreshToken_expiresAt_idx" ON "OidcRefreshToken"("expiresAt")
 
 -- CreateIndex
 CREATE UNIQUE INDEX "SigningKey_kid_key" ON "SigningKey"("kid");
-
--- AddForeignKey
-ALTER TABLE "Database" ADD CONSTRAINT "Database_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "AccessKey" ADD CONSTRAINT "AccessKey_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "OAuthClient" ADD CONSTRAINT "OAuthClient_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
