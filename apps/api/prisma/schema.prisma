@@ -193,6 +193,8 @@ model Deployment {
   rootDir      String   @default(".")
   buildCommand String?
   startCommand String?
+  framework    String?
+  port         Int?
   status       String   @default("idle")
   lastLog      String?
   instanceId   String
@@ -223,6 +225,7 @@ model Instance {
   containerId String?  @unique
   imageTag    String   @default("zyncloud/ubuntu-base:latest")
   status      String   @default("stopped")
+  isSystem    Boolean  @default(false)
   memoryLimit Int      @default(512)
   cpuLimit    Float    @default(0.5)
   internalPort Int?

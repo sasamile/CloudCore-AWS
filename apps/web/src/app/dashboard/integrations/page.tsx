@@ -1,7 +1,7 @@
 "use client"
 
 import { Suspense, useEffect, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { Header } from "@/components/layout/header"
 import { PageHeader } from "@/components/layout/page-header"
 import { PageShell } from "@/components/layout/page-shell"
@@ -28,13 +28,11 @@ import {
   GitBranch,
   Plus,
   Play,
-  ScrollText,
-  CheckCircle2,
-  XCircle,
-  Clock,
   Zap,
+  ChevronRight,
+  Sparkles,
 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { StatusBadge } from "@/components/deployments/status-badge"
 import { formatDistanceToNow } from "date-fns"
 import { es } from "date-fns/locale"
 
@@ -52,56 +50,32 @@ interface Repo {
   private: boolean
 }
 
-interface Instance {
-  id: string
-  name: string
-  status: string
-}
-
 interface Deployment {
   id: string
   repoFullName: string
   branch: string
   rootDir: string
+  framework: string | null
+  port: number | null
   buildCommand: string | null
   startCommand: string | null
   status: string
   lastLog: string | null
   updatedAt: string
-  instance: { id: string; name: string }
 }
 
-const STATUS_CFG = {
-  success: { label: "Listo", icon: CheckCircle2, color: "text-emerald-600 dark:text-emerald-400", spin: false },
-  deploying: { label: "Desplegando", icon: Loader2, color: "text-blue-600 dark:text-blue-400", spin: true },
-  building: { label: "Build", icon: Loader2, color: "text-blue-600 dark:text-blue-400", spin: true },
-  error: { label: "Error", icon: XCircle, color: "text-destructive", spin: false },
-  idle: { label: "Sin desplegar", icon: Clock, color: "text-muted-foreground", spin: false },
-} as const
-
-function StatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_CFG[status as keyof typeof STATUS_CFG] ?? STATUS_CFG.idle
-  const Icon = cfg.icon
-  return (
-    <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium", cfg.color)}>
-      <Icon className={cn("size-3.5 shrink-0", cfg.spin && "animate-spin")} />
-      {cfg.label}
-    </span>
-  )
-}
-
-function ProjectCard({ dep, onDeploy, onLogs }: {
+function ProjectCard({ dep, onDeploy, onOpen }: {
   dep: Deployment
   onDeploy: (id: string) => void
-  onLogs: (dep: Deployment) => void
+  onOpen: (id: string) => void
 }) {
   const timeAgo = formatDistanceToNow(new Date(dep.updatedAt), { addSuffix: true, locale: es })
   const repoName = dep.repoFullName.split("/")[1] ?? dep.repoFullName
   const busy = dep.status === "deploying" || dep.status === "building"
 
   return (
-    <div className="rounded-2xl border border-border bg-card hover:border-border/80 transition-colors overflow-hidden">
-      <div className="flex items-start justify-between gap-4 p-5">
+    <div className="group rounded-2xl border border-border bg-card hover:border-border/80 transition-colors overflow-hidden">
+      <button onClick={() => onOpen(dep.id)} className="w-full text-left p-5 flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
             <Github className="size-4 shrink-0 text-muted-foreground" />
@@ -113,30 +87,26 @@ function ProjectCard({ dep, onDeploy, onLogs }: {
               <GitBranch className="size-3" />
               <span className="font-mono">{dep.branch}</span>
             </span>
-            <span>→ {dep.instance.name}</span>
+            {dep.framework && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-medium text-foreground/80">
+                <Sparkles className="size-2.5" /> {dep.framework}
+              </span>
+            )}
             <span className="hidden sm:inline text-muted-foreground/50">{dep.repoFullName}</span>
           </div>
-          <p className="text-[11px] text-muted-foreground/60">{timeAgo}</p>
+          <p className="text-[11px] text-muted-foreground/60">Actualizado {timeAgo}</p>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          {dep.lastLog && (
-            <Button variant="ghost" size="icon" className="size-8" onClick={() => onLogs(dep)} title="Ver logs">
-              <ScrollText className="size-3.5" />
-            </Button>
-          )}
-          <Button size="sm" className="h-8 gap-1.5 rounded-full px-3 text-xs" onClick={() => onDeploy(dep.id)} disabled={busy}>
-            {busy ? <Loader2 className="size-3 animate-spin" /> : <Play className="size-3" />}
-            {busy ? "Desplegando..." : "Desplegar"}
-          </Button>
-        </div>
-      </div>
-      <div className="border-t border-border/50 bg-muted/20 px-5 py-2.5 flex items-center gap-2">
-        <Zap className="size-3 text-muted-foreground shrink-0" />
-        <p className="text-[11px] text-muted-foreground">
-          Auto-deploy activo — cada push a{" "}
-          <span className="font-mono font-medium text-foreground">{dep.branch}</span>{" "}
-          despliega automáticamente
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors mt-0.5" />
+      </button>
+      <div className="border-t border-border/50 bg-muted/20 px-5 py-2.5 flex items-center justify-between gap-2">
+        <p className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <Zap className="size-3 shrink-0" />
+          Auto-deploy en <span className="font-mono font-medium text-foreground">{dep.branch}</span>
         </p>
+        <Button size="sm" variant="outline" className="h-7 gap-1.5 rounded-full px-3 text-xs" onClick={() => onDeploy(dep.id)} disabled={busy}>
+          {busy ? <Loader2 className="size-3 animate-spin" /> : <Play className="size-3" />}
+          {busy ? "Desplegando" : "Redeploy"}
+        </Button>
       </div>
     </div>
   )
@@ -152,48 +122,39 @@ export default function IntegrationsPage() {
 
 function IntegrationsContent() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const [integrations, setIntegrations] = useState<Integration[]>([])
   const [repos, setRepos] = useState<Repo[]>([])
-  const [instances, setInstances] = useState<Instance[]>([])
   const [deployments, setDeployments] = useState<Deployment[]>([])
   const [loading, setLoading] = useState(true)
   const [connecting, setConnecting] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [importing, setImporting] = useState(false)
-  const [logsDialog, setLogsDialog] = useState<Deployment | null>(null)
+  const [detecting, setDetecting] = useState(false)
 
   const [form, setForm] = useState({
     repoFullName: "",
-    instanceId: "",
     branch: "main",
-    buildCommand: "npm ci && npm run build",
-    startCommand: "nohup npm start > /tmp/app.log 2>&1 &",
     rootDir: ".",
+    framework: "",
+    buildCommand: "",
+    startCommand: "",
   })
 
   const github = integrations.find((i) => i.provider === "github")
 
   async function load() {
     try {
-      const [ints, insts, deps] = await Promise.all([
+      const [ints, deps] = await Promise.all([
         api.get<Integration[]>("/integrations"),
-        api.get<Instance[]>("/instances").catch(() => [] as Instance[]),
         api.get<Deployment[]>("/deployments"),
       ])
       setIntegrations(ints)
-      setInstances(insts)
       setDeployments(deps)
 
       if (ints.some((i) => i.provider === "github")) {
         const repoList = await api.get<Repo[]>("/integrations/github/repos").catch(() => [] as Repo[])
         setRepos(repoList)
-        if (repoList[0] && !form.repoFullName) {
-          setForm((f) => ({ ...f, repoFullName: repoList[0].fullName, branch: repoList[0].defaultBranch }))
-        }
-      }
-
-      if (insts[0] && !form.instanceId) {
-        setForm((f) => ({ ...f, instanceId: insts[0].id }))
       }
     } catch {}
     setLoading(false)
@@ -206,6 +167,15 @@ function IntegrationsContent() {
     if (gh === "error") toast({ title: "Error al conectar GitHub", variant: "destructive" })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
+
+  // Auto-refresca mientras haya despliegues en progreso.
+  useEffect(() => {
+    const active = deployments.some((d) => d.status === "deploying" || d.status === "building")
+    if (!active) return
+    const t = setInterval(load, 4000)
+    return () => clearInterval(t)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deployments])
 
   async function connectGithub() {
     setConnecting(true)
@@ -225,26 +195,55 @@ function IntegrationsContent() {
     toast({ title: "GitHub desconectado" })
   }
 
+  function openImport() {
+    setForm({ repoFullName: "", branch: "main", rootDir: ".", framework: "", buildCommand: "", startCommand: "" })
+    setShowImport(true)
+  }
+
+  // Al elegir repo, detecta framework y pre-llena comandos (cero-config, como Vercel).
+  async function onSelectRepo(fullName: string) {
+    const repo = repos.find((r) => r.fullName === fullName)
+    const branch = repo?.defaultBranch ?? "main"
+    setForm((f) => ({ ...f, repoFullName: fullName, branch }))
+    if (!fullName) return
+    setDetecting(true)
+    try {
+      const detected = await api.get<{ framework: string; buildCommand: string; startCommand: string }>(
+        `/deployments/detect?repoFullName=${encodeURIComponent(fullName)}&branch=${encodeURIComponent(branch)}&rootDir=.`,
+      )
+      setForm((f) => ({
+        ...f,
+        framework: detected.framework,
+        buildCommand: detected.buildCommand,
+        startCommand: detected.startCommand,
+      }))
+    } catch {
+      setForm((f) => ({ ...f, framework: "", buildCommand: "npm install && npm run build", startCommand: "npm run start" }))
+    } finally {
+      setDetecting(false)
+    }
+  }
+
   async function handleImport() {
-    if (!form.repoFullName || !form.instanceId) {
-      toast({ title: "Faltan datos", description: "Elige repositorio e instancia", variant: "destructive" })
+    if (!form.repoFullName) {
+      toast({ title: "Elige un repositorio", variant: "destructive" })
       return
     }
     setImporting(true)
     try {
       const created = await api.post<Deployment>("/deployments", {
         repoFullName: form.repoFullName,
-        instanceId: form.instanceId,
         branch: form.branch,
-        buildCommand: form.buildCommand,
-        startCommand: form.startCommand,
         rootDir: form.rootDir,
+        framework: form.framework || undefined,
+        buildCommand: form.buildCommand || undefined,
+        startCommand: form.startCommand || undefined,
       })
       setShowImport(false)
-      toast({ title: "Proyecto importado", description: "Lanzando primer deploy..." })
-      // Dispara el primer deploy inmediatamente
+      toast({ title: "Proyecto importado", description: "Preparando instancia y lanzando primer deploy..." })
       await api.post(`/deployments/${created.id}/trigger`).catch(() => {})
       await load()
+      router.push(`/dashboard/integrations/${created.id}`)
     } catch (err) {
       toast({ title: "Error", description: formatApiError(err instanceof Error ? err.message : undefined), variant: "destructive" })
     } finally {
@@ -268,10 +267,10 @@ function IntegrationsContent() {
       <PageShell maxWidth="full">
         <PageHeader
           title="Deployments"
-          description="Conecta GitHub y cada push despliega automáticamente en tu instancia."
+          description="Conecta GitHub, importa un repo y cada push se despliega automáticamente. Sin configurar instancias."
           actions={
-            github && instances.length > 0 ? (
-              <Button className="h-9 gap-1.5" onClick={() => setShowImport(true)}>
+            github ? (
+              <Button className="h-9 gap-1.5" onClick={openImport}>
                 <Plus className="size-3.5" /> Importar proyecto
               </Button>
             ) : undefined
@@ -317,17 +316,9 @@ function IntegrationsContent() {
           </div>
         </div>
 
-        {/* No instances warning */}
-        {github && instances.length === 0 && !loading && (
-          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-muted-foreground">
-            Necesitas al menos una instancia corriendo para desplegar.{" "}
-            <a href="/dashboard/instances/new" className="underline text-foreground">Crear instancia →</a>
-          </div>
-        )}
-
         {/* Projects */}
         {loading ? (
-          <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             {[0, 1].map((i) => (
               <div key={i} className="rounded-2xl border border-border bg-card p-5 space-y-3">
                 <div className="flex items-center gap-2">
@@ -348,16 +339,14 @@ function IntegrationsContent() {
             <p className="mt-1 max-w-xs text-[13px] text-muted-foreground leading-relaxed">
               Importa un repositorio para que cada push a GitHub lo despliegue automáticamente.
             </p>
-            {instances.length > 0 && (
-              <Button className="mt-5 h-9 gap-1.5" onClick={() => setShowImport(true)}>
-                <Plus className="size-3.5" /> Importar proyecto
-              </Button>
-            )}
+            <Button className="mt-5 h-9 gap-1.5" onClick={openImport}>
+              <Plus className="size-3.5" /> Importar proyecto
+            </Button>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             {deployments.map((d) => (
-              <ProjectCard key={d.id} dep={d} onDeploy={handleDeploy} onLogs={setLogsDialog} />
+              <ProjectCard key={d.id} dep={d} onDeploy={handleDeploy} onOpen={(id) => router.push(`/dashboard/integrations/${id}`)} />
             ))}
           </div>
         )}
@@ -369,7 +358,7 @@ function IntegrationsContent() {
           <DialogHeader>
             <DialogTitle>Importar proyecto</DialogTitle>
             <DialogDescription>
-              Configura el repo y la instancia una sola vez. Cada push a la rama de producción se despliega automáticamente.
+              Elige un repo. Detectamos el framework y configuramos build/start automáticamente. Cada push se despliega solo.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -377,10 +366,7 @@ function IntegrationsContent() {
               <label className="text-sm font-medium">Repositorio</label>
               <select
                 value={form.repoFullName}
-                onChange={(e) => {
-                  const repo = repos.find((r) => r.fullName === e.target.value)
-                  setForm((f) => ({ ...f, repoFullName: e.target.value, branch: repo?.defaultBranch ?? "main" }))
-                }}
+                onChange={(e) => onSelectRepo(e.target.value)}
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 <option value="">Seleccionar repositorio...</option>
@@ -389,19 +375,25 @@ function IntegrationsContent() {
                 ))}
               </select>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Instancia destino</label>
-              <select
-                value={form.instanceId}
-                onChange={(e) => setForm((f) => ({ ...f, instanceId: e.target.value }))}
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                <option value="">Seleccionar instancia...</option>
-                {instances.filter((i) => i.status === "running").map((i) => (
-                  <option key={i.id} value={i.id}>{i.name}</option>
-                ))}
-              </select>
+
+            {/* Framework detectado */}
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs">
+              {detecting ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+                  <span className="text-muted-foreground">Detectando framework...</span>
+                </>
+              ) : form.framework ? (
+                <>
+                  <Sparkles className="size-3.5 text-blue-500" />
+                  <span>Framework detectado:</span>
+                  <span className="font-medium">{form.framework}</span>
+                </>
+              ) : (
+                <span className="text-muted-foreground">Elige un repo para detectar el framework.</span>
+              )}
             </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">Rama de producción</label>
@@ -414,35 +406,19 @@ function IntegrationsContent() {
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Build command</label>
-              <Input value={form.buildCommand} onChange={(e) => setForm((f) => ({ ...f, buildCommand: e.target.value }))} className="h-9 font-mono text-xs" />
+              <Input value={form.buildCommand} onChange={(e) => setForm((f) => ({ ...f, buildCommand: e.target.value }))} className="h-9 font-mono text-xs" placeholder="npm install && npm run build" />
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Start command</label>
-              <Input value={form.startCommand} onChange={(e) => setForm((f) => ({ ...f, startCommand: e.target.value }))} className="h-9 font-mono text-xs" />
+              <Input value={form.startCommand} onChange={(e) => setForm((f) => ({ ...f, startCommand: e.target.value }))} className="h-9 font-mono text-xs" placeholder="npm run start" />
             </div>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" className="h-9" onClick={() => setShowImport(false)}>Cancelar</Button>
-            <Button className="h-9 gap-1.5" onClick={handleImport} disabled={importing}>
+            <Button className="h-9 gap-1.5" onClick={handleImport} disabled={importing || detecting}>
               {importing ? <Loader2 className="size-3.5 animate-spin" /> : <Rocket className="size-3.5" />}
               Importar y desplegar
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Logs dialog */}
-      <Dialog open={!!logsDialog} onOpenChange={(o) => !o && setLogsDialog(null)}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="font-mono text-sm">{logsDialog?.repoFullName}</DialogTitle>
-            <DialogDescription>Salida del último despliegue · rama {logsDialog?.branch}</DialogDescription>
-          </DialogHeader>
-          <pre className="max-h-[50vh] overflow-auto rounded-xl border border-border bg-muted/50 p-3 text-xs font-mono whitespace-pre-wrap">
-            {logsDialog?.lastLog || "Sin logs aún."}
-          </pre>
-          <DialogFooter>
-            <Button className="h-9" onClick={() => setLogsDialog(null)}>Cerrar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

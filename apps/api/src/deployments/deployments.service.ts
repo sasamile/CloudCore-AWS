@@ -1,19 +1,23 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DockerService } from '../docker/docker.service';
+import { InstancesService } from '../instances/instances.service';
+import { IntegrationsService } from '../integrations/integrations.service';
+import { buildDeployScript } from './deploy-script.util';
 
 export interface CreateDeploymentInput {
-  instanceId: string;
   repoFullName: string; // "owner/repo"
   branch?: string;
   rootDir?: string;
   buildCommand?: string;
   startCommand?: string;
+  framework?: string;
 }
 
 /**
- * Despliegue automatico dentro de una instancia:
- * clona/actualiza el repo, corre el build y arranca la app (detached).
+ * Despliegue estilo Vercel: el usuario importa un repo de GitHub y se despliega
+ * en la instancia de deploy por defecto (oculta). Varios proyectos conviven en la
+ * misma instancia, cada uno en su propio puerto. Cada push re-despliega vía webhook.
  */
 @Injectable()
 export class DeploymentsService {
@@ -22,6 +26,8 @@ export class DeploymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly docker: DockerService,
+    private readonly instances: InstancesService,
+    private readonly integrations: IntegrationsService,
   ) {}
 
   async list(userId: string) {
@@ -31,21 +37,59 @@ export class DeploymentsService {
     });
   }
 
-  async create(userId: string, input: CreateDeploymentInput) {
-    const instance = await this.prisma.instance.findFirst({
-      where: { id: input.instanceId, userId },
+  async getOne(userId: string, id: string) {
+    const dep = await this.prisma.deployment.findFirst({ where: { id, userId } });
+    if (!dep) throw new NotFoundException('Proyecto no encontrado');
+    return dep;
+  }
+
+  /** Puerto interno único por proyecto dentro de la instancia (3000, 3001, ...). */
+  private async nextAppPort(userId: string): Promise<number> {
+    const last = await this.prisma.deployment.findFirst({
+      where: { userId, port: { not: null } },
+      orderBy: { port: 'desc' },
     });
-    if (!instance) throw new NotFoundException('Instancia no encontrada');
+    return (last?.port ?? 2999) + 1;
+  }
+
+  /**
+   * Importa un proyecto: resuelve la instancia default, auto-detecta el framework
+   * si no vienen comandos, asigna puerto y crea el registro. No dispara el deploy
+   * (eso lo hace trigger()).
+   */
+  async create(userId: string, input: CreateDeploymentInput) {
+    const instance = await this.instances.getOrCreateDefaultInstance(userId);
+    if (!instance) {
+      throw new BadRequestException('No se pudo preparar la instancia de despliegue');
+    }
+
+    const branch = input.branch || 'main';
+    const rootDir = input.rootDir || '.';
+
+    // Auto-detección tipo Vercel si el usuario no especificó comandos.
+    let framework = input.framework;
+    let buildCommand = input.buildCommand;
+    let startCommand = input.startCommand;
+    if (!buildCommand || !startCommand) {
+      const detected = await this.integrations.detectFramework(userId, input.repoFullName, branch, rootDir);
+      framework = framework || detected.framework;
+      buildCommand = buildCommand || detected.buildCommand;
+      startCommand = startCommand || detected.startCommand;
+    }
+
+    const port = await this.nextAppPort(userId);
 
     return this.prisma.deployment.create({
       data: {
         userId,
-        instanceId: input.instanceId,
+        instanceId: instance.id,
         repoFullName: input.repoFullName,
-        branch: input.branch || 'main',
-        rootDir: input.rootDir || '.',
-        buildCommand: input.buildCommand,
-        startCommand: input.startCommand,
+        branch,
+        rootDir,
+        framework: framework || null,
+        buildCommand: buildCommand || null,
+        startCommand: startCommand || null,
+        port,
         status: 'idle',
       },
     });
@@ -58,8 +102,14 @@ export class DeploymentsService {
       include: { instance: true },
     });
     if (!dep) throw new NotFoundException('Deployment no encontrado');
+
+    // Asegura que la instancia default esté corriendo antes de desplegar.
     if (!dep.instance.containerId || dep.instance.status !== 'running') {
-      throw new NotFoundException('La instancia no esta corriendo');
+      await this.instances.getOrCreateDefaultInstance(userId);
+    }
+    const fresh = await this.prisma.instance.findUnique({ where: { id: dep.instanceId } });
+    if (!fresh?.containerId || fresh.status !== 'running') {
+      throw new BadRequestException('La instancia de despliegue no está corriendo');
     }
 
     await this.prisma.deployment.update({
@@ -68,69 +118,45 @@ export class DeploymentsService {
     });
 
     // No esperamos: corre en background y actualiza estado/logs.
-    this.runPipeline(dep.id, dep.instance.containerId, dep).catch((e) =>
-      this.logger.error(`Deploy ${dep.id} fallo: ${(e as Error).message}`),
+    this.runPipeline(dep.id, fresh.containerId, userId, dep).catch((e) =>
+      this.logger.error(`Deploy ${dep.id} falló: ${(e as Error).message}`),
     );
 
     return { status: 'building', deploymentId: dep.id };
   }
 
-  private buildScript(dep: {
-    repoFullName: string;
-    branch: string;
-    rootDir: string;
-    buildCommand: string | null;
-    startCommand: string | null;
-  }): string {
-    const token = process.env.GITHUB_DEPLOY_TOKEN;
-    const repoUrl = token
-      ? `https://${token}@github.com/${dep.repoFullName}.git`
-      : `https://github.com/${dep.repoFullName}.git`;
-    const dirName = dep.repoFullName.split('/').pop() || 'app';
-    const appName = dirName.replace(/[^a-zA-Z0-9_-]/g, '-');
-
-    return [
-      'set -e',
-      'export DEBIAN_FRONTEND=noninteractive',
-      'mkdir -p /apps && cd /apps',
-      `if [ -d "${dirName}/.git" ]; then`,
-      `  cd "${dirName}" && git fetch --all && git reset --hard "origin/${dep.branch}";`,
-      `else`,
-      `  git clone --branch "${dep.branch}" --depth 1 "${repoUrl}" "${dirName}" && cd "${dirName}";`,
-      `fi`,
-      `cd "${dep.rootDir}"`,
-      dep.buildCommand ? `echo "== BUILD =="; ${dep.buildCommand}` : 'echo "(sin build)"',
-      // arranca la app en background, log en /var/log
-      dep.startCommand
-        ? `echo "== START =="; pkill -f "${appName}-run" || true; ` +
-          `setsid bash -c 'exec -a ${appName}-run ${dep.startCommand}' > "/var/log/${appName}.log" 2>&1 < /dev/null &`
-        : 'echo "(sin start)"',
-      'echo "== OK =="',
-    ].join('\n');
-  }
-
   private async runPipeline(
     deploymentId: string,
     containerId: string,
+    userId: string,
     dep: {
       repoFullName: string;
       branch: string;
       rootDir: string;
       buildCommand: string | null;
       startCommand: string | null;
+      port: number | null;
     },
   ) {
-    const script = this.buildScript(dep);
+    // Token del usuario para clonar repos privados.
+    let token: string | undefined;
+    try {
+      token = await this.integrations.getGithubToken(userId);
+    } catch {
+      token = undefined;
+    }
+
+    const script = buildDeployScript(dep, token);
     const { output, timedOut } = await this.docker.runScript(containerId, script);
     const success = !timedOut && /== OK ==/.test(output);
 
     await this.prisma.deployment.update({
       where: { id: deploymentId },
       data: {
-        status: success ? 'live' : 'error',
-        lastLog: output.slice(-8000), // ultimas lineas
+        status: success ? 'success' : 'error',
+        lastLog: output.slice(-8000),
       },
     });
-    this.logger.log(`Deploy ${deploymentId}: ${success ? 'live' : 'error'}`);
+    this.logger.log(`Deploy ${deploymentId}: ${success ? 'success' : 'error'}`);
   }
 }

@@ -48,7 +48,6 @@ export const navSections: {
     items: [
       { href: "/dashboard/instances", label: "Instances", icon: Server },
       { href: "/dashboard/integrations", label: "Deploy", icon: Rocket },
-      { href: "/dashboard/deployments", label: "Auto-Deploy", icon: Rocket },
       { href: "/dashboard/ssh-keys", label: "Key Pairs", icon: Key },
     ],
   },

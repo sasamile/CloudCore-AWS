@@ -18,7 +18,8 @@ export class InstancesService {
 
   async findAll(userId: string) {
     const instances = await this.prisma.instance.findMany({
-      where: { userId },
+      // Ocultamos la instancia de sistema (default de deployments) de la lista de Compute.
+      where: { userId, isSystem: false },
       orderBy: { createdAt: 'desc' },
       include: { sshKey: { select: { name: true } }, domains: { select: { domain: true } } },
     });
@@ -54,7 +55,11 @@ export class InstancesService {
     return (lastInstance?.internalPort || 9999) + 3;
   }
 
-  async create(userId: string, data: { name: string; memoryLimit: number; cpuLimit: number; sshKeyId?: string }) {
+  async create(
+    userId: string,
+    data: { name: string; memoryLimit: number; cpuLimit: number; sshKeyId?: string },
+    isSystem = false,
+  ) {
     const hostPort = await this.getNextPort();
     const httpPort = hostPort + 1;
     const sshPort = hostPort + 2;
@@ -69,6 +74,7 @@ export class InstancesService {
         httpPort,
         sshPort,
         sshKeyId: data.sshKeyId || null,
+        isSystem,
         userId,
       },
     });
@@ -218,9 +224,40 @@ export class InstancesService {
     });
   }
 
+  /**
+   * Devuelve la instancia de deploy por defecto del usuario (modelo Vercel).
+   * La crea y la arranca si no existe. Es invisible en la lista de Compute.
+   * Todos los proyectos de GitHub se despliegan aquí sin que el usuario cree instancias.
+   */
+  async getOrCreateDefaultInstance(userId: string) {
+    const existing = await this.prisma.instance.findFirst({
+      where: { userId, isSystem: true },
+    });
+
+    if (existing) {
+      // Asegura que esté corriendo antes de desplegar.
+      if (existing.status !== 'running') {
+        try {
+          await this.start(existing.id, userId);
+        } catch (e) {
+          this.logger.warn(`No se pudo arrancar la instancia default: ${(e as Error).message}`);
+        }
+      }
+      return this.prisma.instance.findUnique({ where: { id: existing.id } });
+    }
+
+    // Crea la instancia default con recursos suficientes para builds (Next.js, etc.).
+    const created = await this.create(
+      userId,
+      { name: 'Deployments', memoryLimit: 2048, cpuLimit: 1.0 },
+      true,
+    );
+    return this.prisma.instance.findUnique({ where: { id: created.id } });
+  }
+
   async getStats(userId: string) {
     const instances = await this.prisma.instance.findMany({
-      where: { userId },
+      where: { userId, isSystem: false },
     });
     const domains = await this.prisma.domain.count({ where: { userId } });
 

@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { DockerService } from '../docker/docker.service';
 import { encryptSecret, decryptSecret } from '../common/crypto.util';
+import { buildDeployScript } from '../deployments/deploy-script.util';
 
 interface OAuthState {
   userId?: string;
@@ -160,12 +161,136 @@ export class IntegrationsService {
     return res.json() as Promise<{ id: number; login: string; email?: string; avatar_url?: string }>;
   }
 
-  private async getGithubToken(userId: string) {
+  async getGithubToken(userId: string) {
     const account = await this.prisma.integrationAccount.findUnique({
       where: { userId_provider: { userId, provider: 'github' } },
     });
     if (!account) throw new BadRequestException('Conecta tu cuenta de GitHub primero');
     return decryptSecret(account.accessTokenEnc);
+  }
+
+  /**
+   * Detecta el framework de un repo leyendo su package.json vía la API de GitHub
+   * y devuelve los comandos de build/start sugeridos (modelo Vercel: cero config).
+   * Las apps escuchan en $PORT, que inyecta el script de deploy.
+   */
+  async detectFramework(
+    userId: string,
+    repoFullName: string,
+    branch = 'main',
+    rootDir = '.',
+  ): Promise<{ framework: string; buildCommand: string; startCommand: string }> {
+    let pkg: {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+      scripts?: Record<string, string>;
+    } | null = null;
+
+    try {
+      const token = await this.getGithubToken(userId);
+      const [owner, repo] = repoFullName.split('/');
+      const path = !rootDir || rootDir === '.' ? 'package.json' : `${rootDir.replace(/\/+$/, '')}/package.json`;
+      const res = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${encodeURIComponent(branch)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+            'User-Agent': 'ZynCloud',
+          },
+        },
+      );
+      if (res.ok) {
+        const data = (await res.json()) as { content?: string; encoding?: string };
+        if (data.content) {
+          const raw = Buffer.from(data.content, (data.encoding as BufferEncoding) || 'base64').toString('utf8');
+          pkg = JSON.parse(raw);
+        }
+      }
+    } catch (err) {
+      this.logger.warn(`detectFramework: no se pudo leer package.json de ${repoFullName}: ${(err as Error).message}`);
+    }
+
+    return this.frameworkFromPackageJson(pkg);
+  }
+
+  private frameworkFromPackageJson(
+    pkg: {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+      scripts?: Record<string, string>;
+    } | null,
+  ): { framework: string; buildCommand: string; startCommand: string } {
+    // Sin package.json → sitio estático.
+    if (!pkg) {
+      return {
+        framework: 'Static',
+        buildCommand: '',
+        startCommand: 'npx --yes serve -s . -l $PORT',
+      };
+    }
+
+    const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
+    const scripts = pkg.scripts || {};
+    const install = 'npm install';
+
+    if (deps['next']) {
+      return {
+        framework: 'Next.js',
+        buildCommand: `${install} && npm run build`,
+        startCommand: 'npm run start',
+      };
+    }
+    if (deps['@nestjs/core']) {
+      return {
+        framework: 'NestJS',
+        buildCommand: `${install} && npm run build`,
+        startCommand: scripts['start:prod'] ? 'npm run start:prod' : 'npm run start',
+      };
+    }
+    if (deps['vite']) {
+      return {
+        framework: 'Vite',
+        buildCommand: `${install} && npm run build`,
+        startCommand: 'npx --yes serve -s dist -l $PORT',
+      };
+    }
+    if (deps['react-scripts']) {
+      return {
+        framework: 'Create React App',
+        buildCommand: `${install} && npm run build`,
+        startCommand: 'npx --yes serve -s build -l $PORT',
+      };
+    }
+    if (deps['@angular/core']) {
+      return {
+        framework: 'Angular',
+        buildCommand: `${install} && npm run build`,
+        startCommand: 'npx --yes serve -s dist -l $PORT',
+      };
+    }
+    if (deps['astro']) {
+      return {
+        framework: 'Astro',
+        buildCommand: `${install} && npm run build`,
+        startCommand: 'npx --yes serve -s dist -l $PORT',
+      };
+    }
+    // Node genérico: usa build si existe, arranca con npm start.
+    if (scripts['start']) {
+      return {
+        framework: 'Node',
+        buildCommand: scripts['build'] ? `${install} && npm run build` : install,
+        startCommand: 'npm run start',
+      };
+    }
+    // Último recurso: instala y sirve estático.
+    return {
+      framework: 'Static',
+      buildCommand: install,
+      startCommand: 'npx --yes serve -s . -l $PORT',
+    };
   }
 
   async listGithubRepos(userId: string) {
@@ -411,6 +536,7 @@ export class IntegrationsService {
       rootDir: string;
       buildCommand: string | null;
       startCommand: string | null;
+      port: number | null;
       instance: { containerId: string | null };
     },
     userId: string,
@@ -421,32 +547,16 @@ export class IntegrationsService {
     });
 
     const token = await this.getGithubToken(userId);
-    const appDir = '/home/ubuntu/app';
-    const workDir = dep.rootDir === '.' ? appDir : `${appDir}/${dep.rootDir}`;
-    const cloneUrl = `https://x-access-token:${token}@github.com/${dep.repoFullName}.git`;
-    const buildCommand = dep.buildCommand || 'npm install && npm run build';
-    const startCommand = dep.startCommand || 'nohup npm start > /tmp/app.log 2>&1 &';
-
-    const script = [
-      'set -e',
-      `mkdir -p ${appDir}`,
-      `cd ${appDir}`,
-      `if [ -d .git ]; then git fetch origin && git checkout ${dep.branch} && git pull origin ${dep.branch}; else git clone --branch ${dep.branch} --depth 1 "${cloneUrl}" .; fi`,
-      `cd ${workDir}`,
-      buildCommand,
-      'pkill -f "node /home/ubuntu/app" 2>/dev/null || true',
-      startCommand,
-      'sleep 2',
-      'echo DEPLOY_OK',
-    ].join(' && ');
+    const script = buildDeployScript(dep, token);
 
     // Corre en background — el webhook responde rápido
     setImmediate(async () => {
       try {
-        const output = await this.docker.execDetached(dep.instance.containerId!, ['/bin/bash', '-c', script]);
+        const { output, timedOut } = await this.docker.runScript(dep.instance.containerId!, script);
+        const success = !timedOut && /== OK ==/.test(output);
         await this.prisma.deployment.update({
           where: { id: dep.id },
-          data: { status: 'success', lastLog: output.slice(-4000) },
+          data: { status: success ? 'success' : 'error', lastLog: output.slice(-8000) },
         });
       } catch (err) {
         await this.prisma.deployment.update({
