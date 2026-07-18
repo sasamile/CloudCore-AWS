@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils"
 
 interface PageHeaderProps {
   title: string
-  description?: string
+  description?: ReactNode
   actions?: ReactNode
   className?: string
 }
@@ -20,7 +20,7 @@ export function PageHeader({ title, description, actions, className }: PageHeade
       <div className="min-w-0 space-y-1">
         <h2 className="text-2xl font-semibold tracking-tight truncate">{title}</h2>
         {description ? (
-          <p className="text-sm text-muted-foreground max-w-2xl">{description}</p>
+          <div className="text-sm text-muted-foreground max-w-2xl">{description}</div>
         ) : null}
       </div>
       {actions ? (

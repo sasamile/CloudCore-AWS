@@ -45,13 +45,32 @@ export const WebTerminal = forwardRef<WebTerminalHandle, WebTerminalProps>(
       const terminal = new Terminal({
         cursorBlink: true,
         theme: {
-          background: "#0a0e1a",
-          foreground: "#e2e8f0",
-          cursor: "#3b82f6",
-          selectionBackground: "#3b82f650",
+          background: "#0c0c0c",
+          foreground: "#e5e5e5",
+          cursor: "#e5e5e5",
+          cursorAccent: "#0c0c0c",
+          selectionBackground: "#ffffff30",
+          black: "#0c0c0c",
+          red: "#f87171",
+          green: "#4ade80",
+          yellow: "#facc15",
+          blue: "#93c5fd",
+          magenta: "#c4b5fd",
+          cyan: "#67e8f9",
+          white: "#e5e5e5",
+          brightBlack: "#737373",
+          brightRed: "#fca5a5",
+          brightGreen: "#86efac",
+          brightYellow: "#fde047",
+          brightBlue: "#bfdbfe",
+          brightMagenta: "#ddd6fe",
+          brightCyan: "#a5f3fc",
+          brightWhite: "#fafafa",
         },
-        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-        fontSize: 14,
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+        fontSize: 13,
+        lineHeight: 1.35,
+        allowTransparency: false,
       })
 
       const fitAddon = new FitAddon()
@@ -61,7 +80,9 @@ export const WebTerminal = forwardRef<WebTerminalHandle, WebTerminalProps>(
       requestAnimationFrame(() => {
         try {
           fitAddon.fit()
-        } catch {}
+        } catch {
+          /* fit before layout is ready */
+        }
       })
 
       termRef.current = terminal
@@ -77,7 +98,7 @@ export const WebTerminal = forwardRef<WebTerminalHandle, WebTerminalProps>(
 
       socket.on("terminal:connected", () => {
         onConnected?.()
-        terminal.writeln("\x1b[32mConectado a la instancia.\x1b[0m\r\n")
+        terminal.writeln("\x1b[32mConnected.\x1b[0m\r\n")
       })
 
       socket.on("terminal:error", (msg: string) => {
@@ -95,7 +116,9 @@ export const WebTerminal = forwardRef<WebTerminalHandle, WebTerminalProps>(
       const handleResize = () => {
         try {
           fitAddon.fit()
-        } catch {}
+        } catch {
+          /* ignore */
+        }
       }
       window.addEventListener("resize", handleResize)
 
@@ -112,5 +135,5 @@ export const WebTerminal = forwardRef<WebTerminalHandle, WebTerminalProps>(
     }, [instanceId, ready, onConnected])
 
     return <div ref={terminalRef} className="terminal-shell" />
-  }
+  },
 )

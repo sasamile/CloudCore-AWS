@@ -1,11 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { api } from "@/lib/api"
-import { formatApiError } from "@/lib/format-api-error"
+import { Bot, Loader2, Send, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Bot, Send, Loader2, X } from "lucide-react"
+import { api } from "@/lib/api"
+import { formatApiError } from "@/lib/format-api-error"
 import { cn } from "@/lib/utils"
 
 interface Message {
@@ -20,12 +20,16 @@ interface AssistantPanelProps {
   className?: string
 }
 
-export function AssistantPanel({ instanceId, instanceName, onClose, className }: AssistantPanelProps) {
+export function AssistantPanel({
+  instanceId,
+  instanceName,
+  onClose,
+  className,
+}: AssistantPanelProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content:
-        "Hola, soy tu asistente de despliegue. Puedo ayudarte con errores de npm, Docker, Git o a configurar tu proyecto.",
+      content: "Ask about deploy errors, packages, or how to configure this instance.",
     },
   ])
   const [input, setInput] = useState("")
@@ -40,7 +44,7 @@ export function AssistantPanel({ instanceId, instanceName, onClose, className }:
     setLoading(true)
     try {
       const context = instanceId
-        ? `Instancia: ${instanceName || instanceId}. El usuario está en la consola web de esta instancia Ubuntu.`
+        ? `Instance: ${instanceName || instanceId}. The user is in the web console for this Ubuntu instance.`
         : undefined
       const res = await api.post<{ content: string; provider: string }>("/ai/chat", {
         messages: next.map((m) => ({ role: m.role, content: m.content })),
@@ -61,47 +65,68 @@ export function AssistantPanel({ instanceId, instanceName, onClose, className }:
   }
 
   return (
-    <div className={cn("border-l w-full lg:w-72 shrink-0 flex flex-col bg-background", className)}>
-      <div className="px-3 py-2 border-b flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Bot className="w-4 h-4 text-muted-foreground" />
-          <p className="text-xs font-semibold">Asistente IA</p>
-        </div>
-        {onClose && (
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose}>
-            <X className="w-3.5 h-3.5" />
+    <div className={cn("flex h-full flex-col overflow-hidden bg-background", className)}>
+      <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-3">
+        <Bot className="h-4 w-4 text-muted-foreground" />
+        <p className="text-sm font-semibold tracking-tight">Assistant</p>
+        {onClose ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="ml-auto h-8 w-8"
+            onClick={onClose}
+          >
+            <X className="h-3.5 w-3.5" />
+            <span className="sr-only">Close</span>
           </Button>
-        )}
+        ) : null}
       </div>
-      <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
+
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
         {messages.map((m, i) => (
           <div
-            key={i}
-            className={`text-xs rounded-lg px-3 py-2 leading-relaxed ${
-              m.role === "user"
-                ? "bg-primary text-primary-foreground ml-4"
-                : "bg-muted/50 mr-2"
-            }`}
+            key={`${m.role}-${i}`}
+            className={cn(
+              "text-sm leading-relaxed",
+              m.role === "user" ? "ml-6 text-right" : "mr-2",
+            )}
           >
-            {m.content}
+            {m.role === "user" ? (
+              <span className="inline-block rounded-lg bg-muted px-3 py-2 text-left text-foreground">
+                {m.content}
+              </span>
+            ) : (
+              <p className="whitespace-pre-wrap text-muted-foreground">{m.content}</p>
+            )}
           </div>
         ))}
-        {loading && (
+        {loading ? (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Pensando...
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Thinking…
           </div>
-        )}
+        ) : null}
       </div>
-      <div className="p-2 border-t flex gap-2">
+
+      <div className="flex shrink-0 gap-2 border-t border-border p-3">
         <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && send()}
-          placeholder="¿Cómo despliego mi app?"
-          className="h-8 text-xs"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void send()
+          }}
+          placeholder="How do I deploy my app?"
+          className="h-9 text-sm"
+          disabled={loading}
         />
-        <Button size="icon" className="h-8 w-8 shrink-0" onClick={send} disabled={loading}>
-          <Send className="w-3.5 h-3.5" />
+        <Button
+          size="icon"
+          className="h-9 w-9 shrink-0"
+          onClick={() => void send()}
+          disabled={loading || !input.trim()}
+        >
+          <Send className="h-3.5 w-3.5" />
+          <span className="sr-only">Send</span>
         </Button>
       </div>
     </div>

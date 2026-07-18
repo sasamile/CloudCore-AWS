@@ -1,21 +1,22 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
-import type { WebTerminalHandle } from "@/components/terminal/web-terminal"
+import type { RefObject } from "react"
 import {
-  Package,
-  Container,
-  GitBranch,
-  Terminal,
-  Zap,
-  Database,
-  Server,
   Code2,
+  Container,
+  Database,
+  GitBranch,
   Layers,
-  Wrench,
+  Package,
+  Server,
   Shield,
+  Terminal,
+  Wrench,
+  Zap,
   type LucideIcon,
 } from "lucide-react"
+import type { WebTerminalHandle } from "@/components/terminal/web-terminal"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 type SetupCommand = {
@@ -38,7 +39,7 @@ const GROUPS: SetupGroup[] = [
         label: "Git",
         icon: GitBranch,
         command: "sudo apt-get update && sudo apt-get install -y git",
-        desc: "Control de versiones",
+        desc: "Version control",
       },
       {
         label: "Build tools",
@@ -57,13 +58,13 @@ const GROUPS: SetupGroup[] = [
         icon: Zap,
         command:
           "curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt-get install -y nodejs",
-        desc: "Runtime LTS",
+        desc: "LTS runtime",
       },
       {
         label: "npm",
         icon: Package,
         command: "sudo npm install -g npm@latest",
-        desc: "Actualizar npm",
+        desc: "Update npm",
       },
       {
         label: "pnpm",
@@ -105,33 +106,33 @@ const GROUPS: SetupGroup[] = [
         label: "Go",
         icon: Code2,
         command: "sudo apt-get update && sudo apt-get install -y golang-go",
-        desc: "Compilador Go",
+        desc: "Go compiler",
       },
       {
         label: "PHP 8",
         icon: Code2,
         command:
           "sudo apt-get update && sudo apt-get install -y php php-cli php-fpm php-mysql php-curl php-xml php-mbstring php-zip",
-        desc: "PHP + extensiones",
+        desc: "PHP + extensions",
       },
       {
         label: "Composer",
         icon: Package,
         command:
           "curl -sS https://getcomposer.org/installer | php && sudo mv composer.phar /usr/local/bin/composer",
-        desc: "Deps PHP",
+        desc: "PHP deps",
       },
     ],
   },
   {
-    title: "Servicios",
+    title: "Services",
     items: [
       {
         label: "Docker",
         icon: Container,
         command:
           "curl -fsSL https://get.docker.com | sudo sh && sudo usermod -aG docker $USER",
-        desc: "Contenedores",
+        desc: "Containers",
       },
       {
         label: "Nginx",
@@ -143,75 +144,76 @@ const GROUPS: SetupGroup[] = [
         label: "Redis",
         icon: Database,
         command: "sudo apt-get update && sudo apt-get install -y redis-server",
-        desc: "Cache / colas",
+        desc: "Cache / queues",
       },
       {
         label: "PostgreSQL",
         icon: Database,
         command:
           "sudo apt-get update && sudo apt-get install -y postgresql postgresql-contrib",
-        desc: "Base de datos",
+        desc: "Database",
       },
       {
         label: "MySQL client",
         icon: Database,
         command: "sudo apt-get update && sudo apt-get install -y mysql-client",
-        desc: "Cliente MySQL",
+        desc: "MySQL CLI",
       },
       {
         label: "SQLite",
         icon: Database,
         command: "sudo apt-get update && sudo apt-get install -y sqlite3",
-        desc: "Base de datos ligera",
+        desc: "Lightweight DB",
       },
     ],
   },
   {
-    title: "Utilidades",
+    title: "Utilities",
     items: [
       {
         label: "Certbot",
         icon: Shield,
         command:
           "sudo apt-get update && sudo apt-get install -y certbot python3-certbot-nginx",
-        desc: "SSL Let's Encrypt",
+        desc: "Let's Encrypt SSL",
       },
       {
         label: "htop",
         icon: Terminal,
         command: "sudo apt-get update && sudo apt-get install -y htop",
-        desc: "Monitor de procesos",
+        desc: "Process monitor",
       },
       {
-        label: "Verificar",
+        label: "Verify",
         icon: Terminal,
         command:
-          "echo '--- Versiones ---' && node -v 2>/dev/null; npm -v 2>/dev/null; pnpm -v 2>/dev/null; yarn -v 2>/dev/null; bun -v 2>/dev/null; python3 --version 2>/dev/null; go version 2>/dev/null; php -v 2>/dev/null | head -1; git --version 2>/dev/null; docker --version 2>/dev/null; nginx -v 2>&1; redis-server --version 2>/dev/null; psql --version 2>/dev/null; pm2 -v 2>/dev/null",
-        desc: "Ver todo instalado",
+          "echo '--- Versions ---' && node -v 2>/dev/null; npm -v 2>/dev/null; pnpm -v 2>/dev/null; yarn -v 2>/dev/null; bun -v 2>/dev/null; python3 --version 2>/dev/null; go version 2>/dev/null; php -v 2>/dev/null | head -1; git --version 2>/dev/null; docker --version 2>/dev/null; nginx -v 2>&1; redis-server --version 2>/dev/null; psql --version 2>/dev/null; pm2 -v 2>/dev/null",
+        desc: "List installed versions",
       },
     ],
   },
 ]
 
 interface QuickSetupProps {
-  terminalRef: React.RefObject<WebTerminalHandle | null>
+  terminalRef: RefObject<WebTerminalHandle | null>
   disabled?: boolean
   className?: string
+  /** Called after a command is sent (e.g. close the drawer). */
+  onRun?: () => void
 }
 
-export function QuickSetup({ terminalRef, disabled, className }: QuickSetupProps) {
+export function QuickSetup({ terminalRef, disabled, className, onRun }: QuickSetupProps) {
   return (
-    <div className={cn("border-l bg-muted/20 w-full lg:w-60 shrink-0 flex flex-col overflow-hidden", className)}>
-      <div className="px-3 py-2 border-b">
-        <p className="text-xs font-semibold">Setup rápido</p>
-        <p className="text-[10px] text-muted-foreground mt-0.5">
-          Ejecuta en la consola
-        </p>
+    <div className={cn("flex h-full flex-col overflow-hidden bg-background", className)}>
+      <div className="shrink-0 space-y-1 border-b border-border px-4 py-4">
+        <p className="text-sm font-semibold tracking-tight">Quick setup</p>
+        <p className="text-xs text-muted-foreground">Run install commands in the terminal</p>
       </div>
-      <div className="flex-1 overflow-y-auto p-2 space-y-3">
+
+      <div className="flex-1 space-y-5 overflow-y-auto px-2 py-3">
         {GROUPS.map((group) => (
           <div key={group.title}>
-            <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="px-2 pb-1.5 text-xs font-medium text-muted-foreground">
               {group.title}
             </p>
             <div className="space-y-0.5">
@@ -221,14 +223,19 @@ export function QuickSetup({ terminalRef, disabled, className }: QuickSetupProps
                   variant="ghost"
                   size="sm"
                   disabled={disabled}
-                  className="w-full justify-start h-auto py-2 px-2 text-left"
-                  onClick={() => terminalRef.current?.sendCommand(item.command)}
+                  className="h-auto w-full justify-start gap-2.5 px-2 py-2 text-left"
+                  onClick={() => {
+                    terminalRef.current?.sendCommand(item.command)
+                    onRun?.()
+                  }}
                 >
-                  <item.icon className="w-3.5 h-3.5 shrink-0 mr-2 text-muted-foreground" />
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium">{item.label}</p>
-                    <p className="text-[10px] text-muted-foreground truncate">{item.desc}</p>
-                  </div>
+                  <item.icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium leading-none">{item.label}</span>
+                    <span className="mt-1 block text-xs text-muted-foreground truncate">
+                      {item.desc}
+                    </span>
+                  </span>
                 </Button>
               ))}
             </div>

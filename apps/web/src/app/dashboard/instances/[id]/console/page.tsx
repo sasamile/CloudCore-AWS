@@ -2,16 +2,15 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
+import { Bot, Wrench } from "lucide-react"
 import { Header } from "@/components/layout/header"
-import { PageHeader } from "@/components/layout/page-header"
-import { PageShell } from "@/components/layout/page-shell"
-import { api } from "@/lib/api"
-import { WebTerminal, type WebTerminalHandle } from "@/components/terminal/web-terminal"
-import { QuickSetup } from "@/components/terminal/quick-setup"
 import { AssistantPanel } from "@/components/ai/assistant-panel"
+import { QuickSetup } from "@/components/terminal/quick-setup"
+import { WebTerminal, type WebTerminalHandle } from "@/components/terminal/web-terminal"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { Bot, PanelRightClose, PanelRightOpen, Wrench } from "lucide-react"
+import { api } from "@/lib/api"
+import { cn } from "@/lib/utils"
 
 export default function ConsolePage() {
   const params = useParams()
@@ -19,9 +18,8 @@ export default function ConsolePage() {
   const terminalRef = useRef<WebTerminalHandle>(null)
   const [connected, setConnected] = useState(false)
   const [instanceName, setInstanceName] = useState("")
-  const [showAi, setShowAi] = useState(true)
   const [showSetup, setShowSetup] = useState(false)
-  const [mobileAi, setMobileAi] = useState(false)
+  const [showAi, setShowAi] = useState(false)
 
   useEffect(() => {
     api
@@ -35,104 +33,84 @@ export default function ConsolePage() {
       <Header
         title="Console"
         breadcrumbs={[
-          { label: "Compute", href: "/dashboard/instances" },
           { label: "Instances", href: "/dashboard/instances" },
-          { label: instanceName || "...", href: `/dashboard/instances/${params.id}` },
+          { label: instanceName || "…", href: `/dashboard/instances/${params.id}` },
+          { label: "Console" },
         ]}
       />
-      <PageShell maxWidth="full" className="flex flex-col h-[calc(100vh-3.5rem)] py-4 space-y-4">
-        <PageHeader
-          title="Web terminal"
-          description={instanceName ? `Sesión en ${instanceName}` : "Conectando a la instancia…"}
-          actions={
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                className="h-9 lg:hidden"
-                onClick={() => setShowSetup(true)}
-              >
-                <Wrench className="w-3.5 h-3.5" />
-                Setup
-              </Button>
-              <Button
-                variant="outline"
-                className="h-9 lg:hidden"
-                onClick={() => setMobileAi(true)}
-              >
-                <Bot className="w-3.5 h-3.5" />
-                Asistente
-              </Button>
-              <Button
-                variant="outline"
-                className="h-9 hidden lg:inline-flex"
-                onClick={() => setShowAi((v) => !v)}
-              >
-                {showAi ? <PanelRightClose className="w-3.5 h-3.5" /> : <PanelRightOpen className="w-3.5 h-3.5" />}
-                <Bot className="w-3.5 h-3.5" />
-                Asistente
-              </Button>
-            </div>
-          }
-        />
-        <div className="rounded-2xl border border-border flex-1 min-h-0 flex flex-col overflow-hidden">
-          <div className="px-3 sm:px-4 py-2.5 border-b border-border bg-muted/30 flex items-center gap-2 shrink-0">
-            <span
-              className={`w-2 h-2 rounded-full shrink-0 ${connected ? "bg-green-500" : "bg-yellow-500 animate-pulse"}`}
-            />
-            <span className="text-xs text-muted-foreground">
-              {connected ? "Conectado" : "Conectando..."}
-            </span>
-            <span className="text-xs text-muted-foreground ml-auto font-mono truncate max-w-[50%]">
-              {instanceName}
-            </span>
-          </div>
-          <div className="flex flex-1 min-h-0">
-            <QuickSetup
-              terminalRef={terminalRef}
-              disabled={!connected}
-              className="hidden lg:flex"
-            />
-            <div className="flex-1 min-w-0 min-h-0">
-              <WebTerminal
-                ref={terminalRef}
-                instanceId={params.id as string}
-                onConnected={() => setConnected(true)}
-              />
-            </div>
-            {showAi && (
-              <AssistantPanel
-                instanceId={params.id as string}
-                instanceName={instanceName}
-                className="hidden lg:flex"
-              />
+
+      <div className="flex h-[calc(100vh-3.5rem)] flex-col">
+        <div className="flex h-10 shrink-0 items-center gap-3 border-b border-border bg-background px-4 sm:px-6">
+          <span
+            className={cn(
+              "h-1.5 w-1.5 shrink-0 rounded-full",
+              connected ? "bg-emerald-500" : "animate-pulse bg-muted-foreground",
             )}
+            aria-hidden
+          />
+          <p className="min-w-0 truncate text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">
+              {instanceName || "Instance"}
+            </span>
+            <span className="mx-1.5 text-muted-foreground/60">·</span>
+            {connected ? "Connected" : "Connecting…"}
+          </p>
+
+          <div className="ml-auto flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8"
+              onClick={() => setShowSetup(true)}
+            >
+              <Wrench className="h-3.5 w-3.5" />
+              Setup
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8"
+              onClick={() => setShowAi(true)}
+            >
+              <Bot className="h-3.5 w-3.5" />
+              Assistant
+            </Button>
           </div>
         </div>
-      </PageShell>
+
+        <div className="min-h-0 flex-1 bg-[#0c0c0c]">
+          <WebTerminal
+            ref={terminalRef}
+            instanceId={params.id as string}
+            onConnected={() => setConnected(true)}
+          />
+        </div>
+      </div>
 
       <Sheet open={showSetup} onOpenChange={setShowSetup}>
-        <SheetContent side="left" className="w-full sm:max-w-sm p-0">
+        <SheetContent side="left" className="w-full p-0 sm:max-w-sm">
           <SheetHeader className="sr-only">
-            <SheetTitle>Setup rápido</SheetTitle>
+            <SheetTitle>Quick setup</SheetTitle>
           </SheetHeader>
           <QuickSetup
             terminalRef={terminalRef}
             disabled={!connected}
-            className="border-l-0 h-full"
+            onRun={() => setShowSetup(false)}
+            className="h-full border-0"
           />
         </SheetContent>
       </Sheet>
 
-      <Sheet open={mobileAi} onOpenChange={setMobileAi}>
-        <SheetContent side="right" className="w-full sm:max-w-sm p-0">
+      <Sheet open={showAi} onOpenChange={setShowAi}>
+        <SheetContent side="right" className="w-full p-0 sm:max-w-md">
           <SheetHeader className="sr-only">
-            <SheetTitle>Asistente IA</SheetTitle>
+            <SheetTitle>Assistant</SheetTitle>
           </SheetHeader>
           <AssistantPanel
             instanceId={params.id as string}
             instanceName={instanceName}
-            onClose={() => setMobileAi(false)}
-            className="border-l-0 h-full"
+            onClose={() => setShowAi(false)}
+            className="h-full border-0"
           />
         </SheetContent>
       </Sheet>
