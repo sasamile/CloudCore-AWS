@@ -97,8 +97,7 @@ export class AppUsersController {
 
 /**
  * Endpoint publico (sin JWT) para auto-registro de usuarios desde apps cliente.
- * Las apps llaman aqui directamente con email+password; luego usan el grant ROPC
- * en /oauth2/token para obtener tokens.
+ * Las apps llaman aqui con email+password; luego autentican en POST /zynauth/auth/login.
  */
 @Controller('zynauth/register')
 export class AppUserSelfRegisterController {
