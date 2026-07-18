@@ -234,6 +234,26 @@ export class OidcController {
         });
         return res.json(tokens);
       }
+      // ROPC: login embebido sin redireccion (usado por apps que muestran su propio form).
+      if (grantType === 'password') {
+        const client = await this.clients.authenticateClient(clientId, clientSecret);
+        const username = body.username || body.email || '';
+        const password = body.password || '';
+        const appUser = await this.appUsers.validateCredentials(clientId, username, password);
+        if (!appUser) {
+          return res.status(400).json({ error: 'invalid_grant', error_description: 'Credenciales invalidas' });
+        }
+        const scope = body.scope || client.allowedScopes || 'openid profile email offline_access';
+        const subject = {
+          id: appUser.id,
+          email: appUser.email,
+          name: appUser.name ?? '',
+          emailVerified: appUser.emailVerified,
+          picture: null,
+        };
+        const tokens = await this.oidc.issueTokens(subject, client, scope, undefined, true);
+        return res.json(tokens);
+      }
       return res.status(400).json({ error: 'unsupported_grant_type' });
     } catch (e) {
       return res.status(400).json({

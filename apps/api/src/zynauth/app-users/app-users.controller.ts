@@ -7,6 +7,7 @@ import {
   Body,
   Param,
   UseGuards,
+  HttpCode,
 } from '@nestjs/common';
 import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
 import { JwtAuthGuard, CurrentUser } from '../../auth/auth.guard';
@@ -29,6 +30,22 @@ class ResetPasswordDto {
   @IsString()
   @MinLength(6)
   newPassword: string;
+}
+
+class SelfRegisterDto {
+  @IsString()
+  clientId: string;
+
+  @IsEmail()
+  email: string;
+
+  @IsString()
+  @MinLength(6)
+  password: string;
+
+  @IsOptional()
+  @IsString()
+  name?: string;
 }
 
 /**
@@ -75,5 +92,30 @@ export class AppUsersController {
     @Param('userId') userId: string,
   ) {
     return this.appUsers.deleteUser(clientId, user.id, userId);
+  }
+}
+
+/**
+ * Endpoint publico (sin JWT) para auto-registro de usuarios desde apps cliente.
+ * Las apps llaman aqui directamente con email+password; luego usan el grant ROPC
+ * en /oauth2/token para obtener tokens.
+ */
+@Controller('zynauth/register')
+export class AppUserSelfRegisterController {
+  constructor(private readonly appUsers: AppUserService) {}
+
+  @Post()
+  @HttpCode(201)
+  async selfRegister(@Body() dto: SelfRegisterDto) {
+    const user = await this.appUsers.selfRegister(dto.clientId, {
+      email: dto.email,
+      password: dto.password,
+      name: dto.name,
+    });
+    return {
+      userConfirmed: true,
+      userSub: user.id,
+      email: user.email,
+    };
   }
 }

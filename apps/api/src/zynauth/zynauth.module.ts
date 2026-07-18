@@ -11,7 +11,7 @@ import { MfaService } from './mfa/mfa.service';
 import { MfaController } from './mfa/mfa.controller';
 import { CredentialsModule } from './credentials/credentials.module';
 import { AppUserService } from './app-users/app-user.service';
-import { AppUsersController } from './app-users/app-users.controller';
+import { AppUsersController, AppUserSelfRegisterController } from './app-users/app-users.controller';
 
 @Module({
   imports: [PrismaModule, AuthModule, CredentialsModule],
@@ -20,6 +20,7 @@ import { AppUsersController } from './app-users/app-users.controller';
     OidcController,
     OAuthClientsController,
     AppUsersController,
+    AppUserSelfRegisterController,
     MfaController,
   ],
   providers: [SigningKeyService, OAuthClientService, AppUserService, OidcService, MfaService],
