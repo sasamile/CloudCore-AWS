@@ -4,7 +4,7 @@ import Link from "next/link"
 import { Header } from "@/components/layout/header"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, BookOpen, Copy, Check, ExternalLink } from "lucide-react"
+import { ArrowLeft, BookOpen, Copy, Check, ExternalLink, KeyRound, HardDrive, ShieldCheck } from "lucide-react"
 import { useState } from "react"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"
@@ -46,28 +46,30 @@ function Section({ id, title, children }: { id: string; title: string; children:
 
 const toc = [
   { id: "overview", label: "Descripción general" },
-  { id: "concepts", label: "Conceptos" },
-  { id: "auth", label: "Autenticación" },
-  { id: "endpoints", label: "Endpoints" },
-  { id: "examples", label: "Ejemplos" },
-  { id: "delete", label: "Eliminación" },
-  { id: "limits", label: "Límites" },
+  { id: "install", label: "Instalación (SDKs)" },
+  { id: "auth", label: "Autenticación (ZynAuth)" },
+  { id: "pools", label: "Pools de usuarios" },
+  { id: "storage", label: "Object Storage (S3)" },
+  { id: "keys", label: "Access Keys" },
+  { id: "storage-sdk", label: "SDK de Storage" },
+  { id: "endpoints", label: "Referencia REST" },
+  { id: "notes", label: "Notas y límites" },
 ]
 
-export default function StorageDocsPage() {
+export default function ApiDocsPage() {
   return (
     <>
       <Header
-        title="Object Storage API"
+        title="API para Desarrolladores"
         breadcrumbs={[
           { label: "Storage", href: "/dashboard/storage" },
-          { label: "Documentación" },
+          { label: "API Docs" },
         ]}
       />
       <div className="w-full px-4 py-6 sm:px-6 space-y-6">
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Sidebar TOC */}
-          <nav className="lg:w-48 shrink-0">
+          <nav className="lg:w-52 shrink-0">
             <div className="lg:sticky lg:top-20 space-y-1">
               <Button variant="ghost" size="sm" asChild className="w-full justify-start -ml-2 mb-3 text-muted-foreground">
                 <Link href="/dashboard/storage">
@@ -94,46 +96,130 @@ export default function StorageDocsPage() {
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <BookOpen className="w-5 h-5 text-muted-foreground" />
-                <h1 className="text-2xl font-semibold tracking-tight">Object Storage API</h1>
+                <h1 className="text-2xl font-semibold tracking-tight">API para Desarrolladores de Zyntek</h1>
               </div>
               <p className="text-muted-foreground">
-                Almacenamiento de archivos estilo S3 en ZynCloud. Usa buckets y objetos desde tu app,
-                scripts o cualquier cliente HTTP con un token JWT.
+                ZynCloud es tu mini-AWS: <strong className="text-foreground">identidad</strong> (ZynAuth) y{" "}
+                <strong className="text-foreground">almacenamiento</strong> (Object Storage), con SDKs oficiales
+                publicados en npm. Registra tu app, autentica usuarios y guarda archivos en minutos.
               </p>
               <div className="flex flex-wrap gap-2 pt-1">
-                <Badge variant="secondary">REST API</Badge>
-                <Badge variant="secondary">JWT Auth</Badge>
-                <Badge variant="secondary">Multipart upload</Badge>
+                <Badge variant="secondary">@zyntek/zynauth</Badge>
+                <Badge variant="secondary">@zyntek/storage</Badge>
+                <Badge variant="secondary">OIDC</Badge>
+                <Badge variant="secondary">Firma ZYN1</Badge>
+                <Badge variant="secondary">REST</Badge>
               </div>
             </div>
 
+            {/* OVERVIEW */}
             <Section id="overview" title="Descripción general">
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                ZynCloud Object Storage guarda tus archivos en el servidor bajo{" "}
-                <code className="text-xs bg-muted px-1 py-0.5 rounded">STORAGE_DIR</code>.
-                Cada usuario tiene sus propios buckets aislados. La API es compatible con el flujo
-                habitual de S3: crear bucket → subir objetos → listar → descargar → eliminar.
-              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-lg border p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-muted-foreground" />
+                    <p className="font-medium text-sm">ZynAuth — Identidad</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Cada app registrada tiene su propio <strong>pool de usuarios</strong> (como Cognito).
+                    Login embebido con MFA, OIDC estándar y SSO. SDK: <code className="text-[10px] bg-muted px-1 rounded">@zyntek/zynauth</code>.
+                  </p>
+                </div>
+                <div className="rounded-lg border p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <HardDrive className="w-4 h-4 text-muted-foreground" />
+                    <p className="font-medium text-sm">Object Storage — Archivos</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Buckets y objetos estilo S3. Acceso por <strong>Access Key + Secret</strong> con firma ZYN1,
+                    igual que AWS. SDK: <code className="text-[10px] bg-muted px-1 rounded">@zyntek/storage</code>.
+                  </p>
+                </div>
+              </div>
               <div className="rounded-lg border bg-muted/30 p-4 text-sm font-mono">
-                {API_URL}/storage/buckets
+                Base URL · {API_URL}
               </div>
             </Section>
 
-            <Section id="concepts" title="Conceptos">
+            {/* INSTALL */}
+            <Section id="install" title="Instalación (SDKs)">
+              <p className="text-sm text-muted-foreground">
+                Los SDKs están publicados en npm. Instala solo lo que tu app necesite:
+              </p>
+              <CodeBlock
+                title="bun / npm"
+                code={`# Autenticación de usuarios
+bun add @zyntek/zynauth
+
+# Almacenamiento de archivos (S3)
+bun add @zyntek/storage`}
+              />
+              <p className="text-sm text-muted-foreground">
+                Ambos funcionan en el backend (Node 18+). Las credenciales
+                (<code className="text-xs bg-muted px-1 rounded">client_secret</code>,
+                <code className="text-xs bg-muted px-1 rounded">secretAccessKey</code>) viven solo en el servidor.
+              </p>
+            </Section>
+
+            {/* AUTH */}
+            <Section id="auth" title="Autenticación (ZynAuth)">
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Registra tu app en <Link href="/dashboard/apps" className="text-primary hover:underline">Apps</Link> y
+                obtén <code className="text-xs bg-muted px-1 rounded">client_id</code> y{" "}
+                <code className="text-xs bg-muted px-1 rounded">client_secret</code>. El SDK hace login embebido
+                (sin redirect) y maneja MFA por ti — como Amplify con Cognito.
+              </p>
+              <CodeBlock
+                title="Login con @zyntek/zynauth"
+                code={`import { ZynAuthClient } from '@zyntek/zynauth';
+
+const zynauth = new ZynAuthClient({
+  issuer: process.env.ZYNAUTH_ISSUER!,            // ${API_URL}
+  clientId: process.env.ZYNAUTH_CLIENT_ID!,       // zyn_...
+  clientSecret: process.env.ZYNAUTH_CLIENT_SECRET, // solo backend
+});
+
+const result = await zynauth.signIn(email, password);
+
+if (result.status === 'MFA_REQUIRED') {
+  // el usuario tiene 2FA: pide el código y complétalo
+  const tokens = await zynauth.confirmMfa(result.session, code);
+} else {
+  const { tokens } = result; // id_token, access_token, refresh_token
+}`}
+              />
+              <p className="text-sm text-muted-foreground">
+                Guarda los tokens en la sesión del servidor (patrón BFF), no en el navegador. Para registrar
+                usuarios desde tu app:
+              </p>
+              <CodeBlock
+                title="Registro"
+                code={`await zynauth.register(email, password, 'Nombre Apellido');`}
+              />
+            </Section>
+
+            {/* POOLS */}
+            <Section id="pools" title="Pools de usuarios">
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Cada app tiene su <strong>propio directorio de usuarios</strong>, aislado del resto y de los
+                administradores de ZynCloud — exactamente como los User Pools de Cognito. Los gestionas desde{" "}
+                <Link href="/dashboard/apps" className="text-primary hover:underline">Apps → 👥 Usuarios</Link>:
+                crear, listar, resetear contraseña y eliminar.
+              </p>
+              <ul className="text-sm text-muted-foreground space-y-2 list-disc list-inside">
+                <li>El login valida contra el pool del <code className="text-xs bg-muted px-1 rounded">client_id</code> de tu app.</li>
+                <li>Los access tokens llevan <code className="text-xs bg-muted px-1 rounded">user_source: &quot;app&quot;</code> para distinguirlos.</li>
+                <li>Bloqueo automático tras 5 intentos fallidos (15 min).</li>
+              </ul>
+            </Section>
+
+            {/* STORAGE */}
+            <Section id="storage" title="Object Storage (S3)">
               <div className="grid gap-4 sm:grid-cols-3">
                 {[
-                  {
-                    term: "Bucket",
-                    desc: "Contenedor lógico, como una carpeta raíz. Nombre en minúsculas (ej. mi-app-assets).",
-                  },
-                  {
-                    term: "Object",
-                    desc: "Un archivo dentro del bucket. Tiene una key (ruta/nombre) y metadata.",
-                  },
-                  {
-                    term: "Key",
-                    desc: "Identificador del objeto dentro del bucket. Ej: fotos/avatar.png",
-                  },
+                  { term: "Bucket", desc: "Contenedor lógico. Nombre en minúsculas (ej. orbidev-assets)." },
+                  { term: "Object", desc: "Un archivo dentro del bucket. Tiene una key y metadata." },
+                  { term: "Key", desc: "Ruta/nombre del objeto. Ej: avatars/u1.png" },
                 ].map((item) => (
                   <div key={item.term} className="rounded-lg border p-4 space-y-1">
                     <p className="font-medium text-sm">{item.term}</p>
@@ -142,30 +228,76 @@ export default function StorageDocsPage() {
                 ))}
               </div>
               <p className="text-sm text-muted-foreground">
-                Ruta en disco:{" "}
-                <code className="text-xs bg-muted px-1 py-0.5 rounded">
-                  STORAGE_DIR/{"{userId}"}/{"{bucket}"}/{"{key}"}
-                </code>
+                Flujo típico: crear Access Key → crear bucket → subir → listar → descargar → eliminar.
+                Dos formas de autenticar: <strong>JWT</strong> (tu login de consola, para el panel) o{" "}
+                <strong>Access Key + firma ZYN1</strong> (para apps y scripts).
               </p>
             </Section>
 
-            <Section id="auth" title="Autenticación">
+            {/* ACCESS KEYS */}
+            <Section id="keys" title="Access Keys (firma ZYN1)">
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                En <Link href="/dashboard/access-keys" className="text-primary hover:underline">Access Keys</Link> crea
+                una credencial. Obtienes un <code className="text-xs bg-muted px-1 rounded">ZYNAK...</code> y un secret
+                que se muestra <strong>una sola vez</strong>. Es el equivalente al Access Key ID + Secret de AWS.
+              </p>
+              <div className="rounded-lg border bg-muted/30 p-4 space-y-1 text-xs font-mono">
+                <div>Authorization: ZYN1-HMAC-SHA256 Credential=&lt;accessKeyId&gt;, Signature=&lt;hmac&gt;</div>
+                <div>X-Zyn-Date: &lt;ISO8601&gt;</div>
+                <div>X-Zyn-Content-Sha256: UNSIGNED-PAYLOAD</div>
+              </div>
               <p className="text-sm text-muted-foreground">
-                Todas las peticiones requieren un token JWT en el header{" "}
-                <code className="text-xs bg-muted px-1 py-0.5 rounded">Authorization: Bearer TOKEN</code>.
-                Obtén el token con login:
+                La firma = <code className="text-xs bg-muted px-1 rounded">HMAC-SHA256(secret, &quot;METHOD\nPATH\nDATE\nCONTENT_SHA&quot;)</code>.
+                No la calcules a mano: el SDK <code className="text-xs bg-muted px-1 rounded">@zyntek/storage</code> lo hace por ti.
+              </p>
+            </Section>
+
+            {/* STORAGE SDK */}
+            <Section id="storage-sdk" title="SDK de Storage (@zyntek/storage)">
+              <CodeBlock
+                title="Subir y descargar archivos"
+                code={`import { ZynStorageClient } from '@zyntek/storage';
+
+const storage = new ZynStorageClient({
+  endpoint: process.env.ZYNCLOUD_STORAGE_ENDPOINT!, // ${API_URL}
+  accessKeyId: process.env.ZYNCLOUD_ACCESS_KEY_ID!, // ZYNAK...
+  secretAccessKey: process.env.ZYNCLOUD_SECRET!,
+});
+
+// Crea el bucket si no existe (idempotente)
+const bucket = await storage.ensureBucket('orbidev-assets');
+
+// Sube un archivo
+await storage.putObject(bucket.id, 'avatars/u1.png', pngBuffer, 'image/png');
+
+// Descarga por key
+const { data, contentType } = await storage.getObjectByKey(bucket.id, 'avatars/u1.png');
+
+// Lista y elimina
+const objetos = await storage.listObjects(bucket.id);
+await storage.deleteObject(bucket.id, objetos[0].id);`}
+              />
+              <p className="text-sm text-muted-foreground">
+                Si prefieres HTTP directo (sin SDK), firma tú la petición o usa un JWT. Ejemplo con curl + JWT:
               </p>
               <CodeBlock
-                title="Obtener token"
-                code={`curl -X POST ${API_URL}/auth/login \\
+                title="Alternativa: curl con JWT"
+                code={`# 1. Token de consola
+curl -X POST ${API_URL}/auth/login \\
   -H "Content-Type: application/json" \\
   -d '{"email":"tu@email.com","password":"tu-password"}'
 
-# Respuesta: { "access_token": "eyJhbG..." }`}
+# 2. Subir un archivo (multipart)
+curl -X POST ${API_URL}/storage/buckets/BUCKET_ID/upload \\
+  -H "Authorization: Bearer $TOKEN" \\
+  -F "file=@./imagen.png" \\
+  -F "key=fotos/imagen.png"`}
               />
             </Section>
 
-            <Section id="endpoints" title="Endpoints">
+            {/* ENDPOINTS */}
+            <Section id="endpoints" title="Referencia REST">
+              <p className="text-sm font-medium text-muted-foreground">Autenticación</p>
               <div className="overflow-x-auto rounded-lg border">
                 <table className="w-full text-sm">
                   <thead>
@@ -177,9 +309,43 @@ export default function StorageDocsPage() {
                   </thead>
                   <tbody className="divide-y">
                     {[
+                      ["POST", "/zynauth/auth/login", "Login embebido → tokens o challenge MFA"],
+                      ["POST", "/zynauth/auth/mfa", "Completar el reto de MFA"],
+                      ["POST", "/zynauth/register", "Auto-registro de usuario en el pool"],
+                      ["POST", "/oauth2/token", "OIDC: authorization_code + refresh_token"],
+                      ["GET", "/oauth2/userinfo", "Datos del usuario (Bearer)"],
+                      ["GET", "/.well-known/openid-configuration", "Discovery OIDC"],
+                    ].map(([method, path, desc]) => (
+                      <tr key={path} className="hover:bg-muted/30">
+                        <td className="p-4">
+                          <Badge variant={method === "GET" ? "secondary" : "default"} className="font-mono text-[10px]">{method}</Badge>
+                        </td>
+                        <td className="p-4 font-mono text-xs">{path}</td>
+                        <td className="p-4 text-muted-foreground">{desc}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <p className="text-sm font-medium text-muted-foreground pt-2">Storage &amp; Access Keys</p>
+              <div className="overflow-x-auto rounded-lg border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="h-10 px-4 text-left font-medium text-muted-foreground">Método</th>
+                      <th className="h-10 px-4 text-left font-medium text-muted-foreground">Ruta</th>
+                      <th className="h-10 px-4 text-left font-medium text-muted-foreground">Descripción</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {[
+                      ["GET", "/zynauth/access-keys", "Listar access keys (JWT)"],
+                      ["POST", "/zynauth/access-keys", "Crear access key (JWT)"],
+                      ["DELETE", "/zynauth/access-keys/:id", "Revocar access key (JWT)"],
                       ["GET", "/storage/buckets", "Listar buckets"],
                       ["POST", "/storage/buckets", "Crear bucket"],
-                      ["DELETE", "/storage/buckets/:id", "Eliminar bucket y todos sus objetos"],
+                      ["DELETE", "/storage/buckets/:id", "Eliminar bucket y sus objetos"],
                       ["GET", "/storage/buckets/:id/objects", "Listar objetos"],
                       ["POST", "/storage/buckets/:id/upload", "Subir archivo (multipart)"],
                       ["GET", "/storage/buckets/:bucketId/objects/:objectId/download", "Descargar objeto"],
@@ -187,9 +353,7 @@ export default function StorageDocsPage() {
                     ].map(([method, path, desc]) => (
                       <tr key={path} className="hover:bg-muted/30">
                         <td className="p-4">
-                          <Badge variant={method === "GET" ? "secondary" : method === "DELETE" ? "destructive" : "default"} className="font-mono text-[10px]">
-                            {method}
-                          </Badge>
+                          <Badge variant={method === "GET" ? "secondary" : method === "DELETE" ? "destructive" : "default"} className="font-mono text-[10px]">{method}</Badge>
                         </td>
                         <td className="p-4 font-mono text-xs">{path}</td>
                         <td className="p-4 text-muted-foreground">{desc}</td>
@@ -200,102 +364,25 @@ export default function StorageDocsPage() {
               </div>
             </Section>
 
-            <Section id="examples" title="Ejemplos">
-              <div className="space-y-6">
-                <CodeBlock
-                  title="1. Crear bucket"
-                  code={`curl -X POST ${API_URL}/storage/buckets \\
-  -H "Authorization: Bearer $TOKEN" \\
-  -H "Content-Type: application/json" \\
-  -d '{"name":"mi-bucket"}'`}
-                />
-                <CodeBlock
-                  title="2. Subir archivo"
-                  code={`curl -X POST ${API_URL}/storage/buckets/BUCKET_ID/upload \\
-  -H "Authorization: Bearer $TOKEN" \\
-  -F "file=@./imagen.png" \\
-  -F "key=fotos/imagen.png"`}
-                />
-                <CodeBlock
-                  title="3. Listar objetos"
-                  code={`curl ${API_URL}/storage/buckets/BUCKET_ID/objects \\
-  -H "Authorization: Bearer $TOKEN"`}
-                />
-                <CodeBlock
-                  title="4. Descargar objeto"
-                  code={`curl -O ${API_URL}/storage/buckets/BUCKET_ID/objects/OBJECT_ID/download \\
-  -H "Authorization: Bearer $TOKEN"`}
-                />
-                <CodeBlock
-                  title="5. Eliminar objeto"
-                  code={`curl -X DELETE ${API_URL}/storage/buckets/BUCKET_ID/objects/OBJECT_ID \\
-  -H "Authorization: Bearer $TOKEN"`}
-                />
-                <CodeBlock
-                  title="JavaScript (fetch)"
-                  code={`const token = "eyJhbG..."
-const bucketId = "clx..."
-
-// Subir archivo
-const form = new FormData()
-form.append("file", fileInput.files[0])
-form.append("key", "uploads/archivo.pdf")
-
-const res = await fetch(\`${API_URL}/storage/buckets/\${bucketId}/upload\`, {
-  method: "POST",
-  headers: { Authorization: \`Bearer \${token}\` },
-  body: form,
-})
-const object = await res.json()
-console.log(object)`}
-                />
-                <CodeBlock
-                  title="Python (requests)"
-                  code={`import requests
-
-token = "eyJhbG..."
-bucket_id = "clx..."
-headers = {"Authorization": f"Bearer {token}"}
-
-# Subir
-with open("archivo.pdf", "rb") as f:
-    r = requests.post(
-        f"${API_URL}/storage/buckets/{bucket_id}/upload",
-        headers=headers,
-        files={"file": f},
-        data={"key": "docs/archivo.pdf"},
-    )
-print(r.json())`}
-                />
-              </div>
-            </Section>
-
-            <Section id="delete" title="Eliminación y sincronización">
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Cuando eliminas un objeto o bucket desde la consola o la API, el archivo se borra
-                <strong className="text-foreground"> del disco del servidor</strong> y de la base de datos
-                al mismo tiempo. No quedan archivos huérfanos en el servidor si la operación tiene éxito.
-              </p>
+            {/* NOTES */}
+            <Section id="notes" title="Notas y límites">
               <ul className="text-sm text-muted-foreground space-y-2 list-disc list-inside">
-                <li>Eliminar objeto → borra el archivo y el registro en PostgreSQL</li>
-                <li>Eliminar bucket → borra la carpeta completa del bucket en disco</li>
-                <li>Subir con la misma key → sobrescribe el archivo existente (upsert)</li>
+                <li>Los SDKs son para <strong>backend</strong>: nunca expongas <code className="text-xs bg-muted px-1 rounded">client_secret</code> ni <code className="text-xs bg-muted px-1 rounded">secretAccessKey</code> en el navegador.</li>
+                <li>La firma ZYN1 tolera un desfase de reloj de 5 minutos: sincroniza la hora del servidor.</li>
+                <li>El upload carga el archivo en memoria del API — para archivos muy grandes considera trocearlos.</li>
+                <li>Los nombres de bucket se normalizan a minúsculas y guiones.</li>
+                <li>Cada usuario/Access Key solo ve y gestiona sus propios buckets.</li>
+                <li>El <code className="text-xs bg-muted px-1 rounded">refresh_token</code> de ZynAuth dura 30 días; el access token 1 hora.</li>
               </ul>
-            </Section>
-
-            <Section id="limits" title="Límites y notas">
-              <ul className="text-sm text-muted-foreground space-y-2 list-disc list-inside">
-                <li>No es AWS S3 real — no hay access keys ni SDK de AWS</li>
-                <li>Autenticación solo con JWT (mismo login de la consola)</li>
-                <li>Los nombres de bucket se normalizan a minúsculas y guiones</li>
-                <li>El upload carga el archivo en memoria del API — archivos muy grandes pueden requerir más RAM</li>
-                <li>Cada usuario solo ve y gestiona sus propios buckets</li>
-              </ul>
-              <div className="pt-2">
+              <div className="flex flex-wrap gap-2 pt-2">
                 <Button variant="outline" size="sm" asChild>
-                  <Link href="/dashboard/storage">
-                    Ir a Object Storage <ExternalLink className="w-3.5 h-3.5" />
-                  </Link>
+                  <Link href="/dashboard/apps">Registrar una app <KeyRound className="w-3.5 h-3.5" /></Link>
+                </Button>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/dashboard/access-keys">Crear Access Key <KeyRound className="w-3.5 h-3.5" /></Link>
+                </Button>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/dashboard/storage">Ir a Object Storage <ExternalLink className="w-3.5 h-3.5" /></Link>
                 </Button>
               </div>
             </Section>
