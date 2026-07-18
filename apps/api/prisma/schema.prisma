@@ -69,6 +69,29 @@ model AccessKey {
   @@index([userId])
 }
 
+/// Pool de usuarios por aplicacion registrada en ZynAuth (equivalente a un User Pool de Cognito).
+/// Cada app client tiene sus propios usuarios, separados de los administradores de ZynCloud.
+model AppUser {
+  id                  String    @id @default(cuid())
+  clientId            String                        // OAuthClient.clientId del pool al que pertenece
+  email               String
+  name                String?
+  passwordHash        String
+  emailVerified       Boolean   @default(false)
+  mfaEnabled          Boolean   @default(false)
+  mfaSecretEnc        String?
+  mfaBackupCodes      String?
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  authCodes           AuthCode[]
+  refreshTokens       OidcRefreshToken[]
+
+  @@unique([clientId, email])
+  @@index([clientId])
+}
+
 /// App registrada que puede autenticar usuarios via ZynAuth (equivalente a un "App Client" de Cognito).
 model OAuthClient {
   id              String    @id @default(cuid())
@@ -103,8 +126,10 @@ model AuthCode {
   expiresAt           DateTime
   consumedAt          DateTime?
   createdAt           DateTime @default(now())
-  userId              String
-  user                User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId              String?                      // ZynCloud admin; null si es AppUser
+  user                User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appUserId           String?                      // App user del pool del cliente
+  appUser             AppUser?    @relation(fields: [appUserId], references: [id], onDelete: Cascade)
   oauthClientId       String
   client              OAuthClient @relation(fields: [oauthClientId], references: [id], onDelete: Cascade)
 
@@ -118,10 +143,12 @@ model OidcRefreshToken {
   scope         String
   expiresAt     DateTime
   revokedAt     DateTime?
-  rotatedTo     String?               // id del token que lo reemplazo
+  rotatedTo     String?
   createdAt     DateTime  @default(now())
-  userId        String
-  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String?                      // null si el token es de un AppUser
+  user          User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appUserId     String?
+  appUser       AppUser?    @relation(fields: [appUserId], references: [id], onDelete: Cascade)
   oauthClientId String
   client        OAuthClient @relation(fields: [oauthClientId], references: [id], onDelete: Cascade)
 

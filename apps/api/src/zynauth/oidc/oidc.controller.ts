@@ -12,11 +12,12 @@ import {
 import type { Request, Response } from 'express';
 import { OidcService, type AuthorizeParams } from './oidc.service';
 import { OAuthClientService } from '../clients/oauth-client.service';
-import { MfaService } from '../mfa/mfa.service';
-import { PrismaService } from '../../prisma/prisma.service';
+import { AppUserService } from '../app-users/app-user.service';
 import { ZYNAUTH } from '../zynauth.config';
 import { renderLoginPage } from './login-page';
 import { renderMfaPage } from './mfa-page';
+import { renderRegisterPage } from './register-page';
+import { PrismaService } from '../../prisma/prisma.service';
 
 function parseCookies(header?: string): Record<string, string> {
   const out: Record<string, string> = {};
@@ -48,7 +49,7 @@ export class OidcController {
   constructor(
     private readonly oidc: OidcService,
     private readonly clients: OAuthClientService,
-    private readonly mfa: MfaService,
+    private readonly appUsers: AppUserService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -57,104 +58,150 @@ export class OidcController {
   async authorize(@Query() q: Record<string, string>, @Req() req: Request, @Res() res: Response) {
     const params = await this.validateAuthorize(q);
 
-    // Ya hay sesion SSO en ZynAuth?
     const cookies = parseCookies(req.headers.cookie);
-    const sessionUser = cookies[ZYNAUTH.sessionCookie]
+    const session = cookies[ZYNAUTH.sessionCookie]
       ? await this.oidc.verifySessionToken(cookies[ZYNAUTH.sessionCookie])
       : null;
 
-    if (sessionUser) {
-      const code = await this.oidc.createAuthCode(sessionUser, params);
+    if (session) {
+      const code = await this.oidc.createAuthCode(session.id, params, session.isAppUser);
       return res.redirect(this.buildRedirect(params.redirectUri, { code, state: params.state }));
     }
 
-    // Mostrar la Hosted UI de login.
+    const client = await this.clients.findByClientId(params.clientId);
+    const appName = client?.name;
+
     return res
       .status(200)
       .type('html')
-      .send(renderLoginPage({ params: q, error: null }));
+      .send(renderLoginPage({ params: q, error: null, appName }));
   }
 
-  // ---- POST /oauth2/login (Hosted UI submit) --------------------------------
+  // ---- POST /oauth2/login ---------------------------------------------------
   @Post('login')
   async login(@Body() body: Record<string, string>, @Res() res: Response) {
     const params = await this.validateAuthorize(body);
     const { email, password } = body;
 
-    let user: Awaited<ReturnType<OidcService['validateCredentials']>> = null;
+    const client = await this.clients.findByClientId(params.clientId);
+    const appName = client?.name;
+
+    let appUser: Awaited<ReturnType<OidcService['validateCredentials']>> = null;
     try {
-      user = await this.oidc.validateCredentials(email ?? '', password ?? '');
+      appUser = await this.oidc.validateCredentials(
+        email ?? '',
+        password ?? '',
+        params.clientId,
+      );
     } catch (e) {
       return res
         .status(200)
         .type('html')
-        .send(renderLoginPage({ params: body, error: (e as Error).message }));
+        .send(renderLoginPage({ params: body, error: (e as Error).message, appName }));
     }
-    if (!user) {
+    if (!appUser) {
       return res
         .status(200)
         .type('html')
-        .send(renderLoginPage({ params: body, error: 'Credenciales invalidas' }));
+        .send(renderLoginPage({ params: body, error: 'Credenciales invalidas', appName }));
     }
 
-    // Segundo factor: si el usuario tiene MFA, pedimos el codigo antes de crear sesion.
-    if (user.mfaEnabled) {
-      const ticket = await this.oidc.createMfaTicket(user.id);
+    // MFA para app users
+    if (appUser.mfaEnabled) {
+      const ticket = await this.oidc.createMfaTicket(appUser.id, true);
       return res
         .status(200)
         .type('html')
         .send(renderMfaPage({ params: body, ticket, error: null }));
     }
 
-    return this.completeLogin(res, user.id, params, body);
+    return this.completeLogin(res, appUser.id, true, params, body);
   }
 
-  // ---- POST /oauth2/mfa (segundo paso) --------------------------------------
+  // ---- POST /oauth2/mfa -----------------------------------------------------
   @Post('mfa')
   async mfaStep(@Body() body: Record<string, string>, @Res() res: Response) {
     const params = await this.validateAuthorize(body);
-    const userId = await this.oidc.verifyMfaTicket(body.mfa_ticket ?? '');
-    if (!userId) {
+    const ticket = await this.oidc.verifyMfaTicket(body.mfa_ticket ?? '');
+    if (!ticket) {
       return res
         .status(200)
         .type('html')
         .send(renderLoginPage({ params: body, error: 'La sesion de verificacion expiro, inicia de nuevo' }));
     }
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+
+    if (ticket.isAppUser) {
+      const appUser = await this.appUsers.findById(ticket.id);
+      if (!appUser) {
+        return res.status(200).type('html').send(renderLoginPage({ params: body, error: 'Usuario no encontrado' }));
+      }
+      const ok = await this.appUsers.verifyMfa(appUser, body.code ?? '');
+      if (!ok) {
+        const newTicket = await this.oidc.createMfaTicket(appUser.id, true);
+        return res.status(200).type('html').send(renderMfaPage({ params: body, ticket: newTicket, error: 'Codigo invalido' }));
+      }
+      return this.completeLogin(res, appUser.id, true, params, body);
+    }
+
+    // ZynCloud user MFA — no deberia llegar aqui porque el flujo OIDC usa AppUsers,
+    // pero lo mantenemos como fallback seguro.
+    const user = await this.prisma.user.findUnique({ where: { id: ticket.id } });
     if (!user) {
       return res.status(200).type('html').send(renderLoginPage({ params: body, error: 'Usuario no encontrado' }));
     }
-    const ok = await this.mfa.verifyForUser(user, body.code ?? '');
-    if (!ok) {
-      const ticket = await this.oidc.createMfaTicket(user.id);
-      return res
-        .status(200)
-        .type('html')
-        .send(renderMfaPage({ params: body, ticket, error: 'Codigo invalido' }));
+    return this.completeLogin(res, user.id, false, params, body);
+  }
+
+  // ---- GET /oauth2/register --------------------------------------------------
+  @Get('register')
+  async registerPage(@Query() q: Record<string, string>, @Res() res: Response) {
+    const clientId = q.client_id;
+    if (!clientId) throw new BadRequestException('client_id requerido');
+    const client = await this.clients.findByClientId(clientId);
+    if (!client) throw new BadRequestException('client_id desconocido');
+
+    return res
+      .status(200)
+      .type('html')
+      .send(renderRegisterPage({ params: q, error: null, appName: client.name }));
+  }
+
+  // ---- POST /oauth2/register -------------------------------------------------
+  @Post('register')
+  async register(@Body() body: Record<string, string>, @Res() res: Response) {
+    const params = await this.validateAuthorize(body);
+    const client = await this.clients.findByClientId(params.clientId);
+    const appName = client?.name;
+
+    const { email, password, password2, name } = body;
+
+    if (!email || !password) {
+      return res.status(200).type('html').send(
+        renderRegisterPage({ params: body, error: 'Email y contrasena son obligatorios', appName }),
+      );
     }
-    return this.completeLogin(res, user.id, params, body);
+    if (password !== password2) {
+      return res.status(200).type('html').send(
+        renderRegisterPage({ params: body, error: 'Las contrasenas no coinciden', appName }),
+      );
+    }
+    if (password.length < 6) {
+      return res.status(200).type('html').send(
+        renderRegisterPage({ params: body, error: 'La contrasena debe tener al menos 6 caracteres', appName }),
+      );
+    }
+
+    try {
+      const appUser = await this.appUsers.selfRegister(params.clientId, { email, password, name });
+      return this.completeLogin(res, appUser.id, true, params, body);
+    } catch (e) {
+      return res.status(200).type('html').send(
+        renderRegisterPage({ params: body, error: (e as Error).message, appName }),
+      );
+    }
   }
 
-  /** Crea la cookie SSO, emite el code y redirige a la app. */
-  private async completeLogin(
-    res: Response,
-    userId: string,
-    params: AuthorizeParams,
-    rawParams: Record<string, string>,
-  ) {
-    const session = await this.oidc.createSessionToken(userId);
-    res.cookie(ZYNAUTH.sessionCookie, session, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: ZYNAUTH.ttl.sessionSeconds * 1000,
-      path: '/',
-    });
-    const code = await this.oidc.createAuthCode(userId, params);
-    return res.redirect(this.buildRedirect(params.redirectUri, { code, state: rawParams.state }));
-  }
-
-  // ---- POST /oauth2/token ----------------------------------------------------
+  // ---- POST /oauth2/token ---------------------------------------------------
   @Post('token')
   async token(
     @Body() body: Record<string, string>,
@@ -196,7 +243,7 @@ export class OidcController {
     }
   }
 
-  // ---- GET /oauth2/userinfo --------------------------------------------------
+  // ---- GET /oauth2/userinfo -------------------------------------------------
   @Get('userinfo')
   async userinfo(@Headers('authorization') authHeader: string | undefined, @Res() res: Response) {
     if (!authHeader?.startsWith('Bearer ')) {
@@ -210,7 +257,7 @@ export class OidcController {
     }
   }
 
-  // ---- GET /oauth2/logout ----------------------------------------------------
+  // ---- GET /oauth2/logout ---------------------------------------------------
   @Get('logout')
   async logout(@Query() q: Record<string, string>, @Res() res: Response) {
     res.clearCookie(ZYNAUTH.sessionCookie, { path: '/' });
@@ -226,6 +273,25 @@ export class OidcController {
   }
 
   // ---- helpers ---------------------------------------------------------------
+  private async completeLogin(
+    res: Response,
+    subjectId: string,
+    isAppUser: boolean,
+    params: AuthorizeParams,
+    rawParams: Record<string, string>,
+  ) {
+    const session = await this.oidc.createSessionToken(subjectId, isAppUser);
+    res.cookie(ZYNAUTH.sessionCookie, session, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: ZYNAUTH.ttl.sessionSeconds * 1000,
+      path: '/',
+    });
+    const code = await this.oidc.createAuthCode(subjectId, params, isAppUser);
+    return res.redirect(this.buildRedirect(params.redirectUri, { code, state: rawParams.state }));
+  }
+
   private async validateAuthorize(q: Record<string, string>): Promise<AuthorizeParams> {
     if (q.response_type && q.response_type !== 'code') {
       throw new BadRequestException('response_type debe ser "code"');

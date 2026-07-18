@@ -8,7 +8,6 @@ function esc(v: unknown): string {
     .replace(/"/g, '&quot;');
 }
 
-// Campos del flujo authorize que deben viajar como hidden en el POST /oauth2/login.
 const PASS_THROUGH = [
   'client_id',
   'redirect_uri',
@@ -20,7 +19,7 @@ const PASS_THROUGH = [
   'code_challenge_method',
 ];
 
-export function renderLoginPage(opts: {
+export function renderRegisterPage(opts: {
   params: Record<string, string>;
   error: string | null;
   appName?: string;
@@ -33,20 +32,14 @@ export function renderLoginPage(opts: {
     ? `<div class="error">${esc(opts.error)}</div>`
     : '';
 
-  const subtitle = opts.appName
-    ? `Inicia sesi&oacute;n en ${esc(opts.appName)}`
-    : 'Inicia sesi&oacute;n para continuar';
-
-  const registerQs = PASS_THROUGH.filter((k) => opts.params[k] != null)
-    .map((k) => `${encodeURIComponent(k)}=${encodeURIComponent(opts.params[k])}`)
-    .join('&');
+  const subtitle = opts.appName ? `Crea tu cuenta en ${esc(opts.appName)}` : 'Crea tu cuenta';
 
   return `<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Iniciar sesion &middot; ZynAuth</title>
+  <title>Registrarse &middot; ZynAuth</title>
   <style>
     :root { color-scheme: dark; }
     * { box-sizing: border-box; }
@@ -67,7 +60,7 @@ export function renderLoginPage(opts: {
     .brand h1 { font-size: 16px; margin: 0; font-weight: 600; }
     .brand span { display: block; font-size: 12px; color: #64748b; font-weight: 400; }
     label { display: block; font-size: 13px; color: #94a3b8; margin: 14px 0 6px; }
-    input[type=email], input[type=password] {
+    input[type=text], input[type=email], input[type=password] {
       width: 100%; padding: 11px 12px; border-radius: 9px;
       background: #0a0e1a; border: 1px solid #1f2937; color: #e2e8f0; font-size: 14px;
     }
@@ -86,20 +79,28 @@ export function renderLoginPage(opts: {
   </style>
 </head>
 <body>
-  <form class="card" method="post" action="${ZYNAUTH.paths.login}">
+  <form class="card" method="post" action="${ZYNAUTH.paths.register}">
     <div class="brand">
       <div class="logo">Z</div>
       <div><h1>ZynAuth<span>${subtitle}</span></h1></div>
     </div>
     ${errorHtml}
+    <label for="name">Nombre</label>
+    <input id="name" type="text" name="name" autocomplete="name" value="${esc(opts.params.name)}" />
     <label for="email">Email</label>
     <input id="email" type="email" name="email" autocomplete="username" required autofocus value="${esc(opts.params.email)}" />
     <label for="password">Contrase&ntilde;a</label>
-    <input id="password" type="password" name="password" autocomplete="current-password" required />
+    <input id="password" type="password" name="password" autocomplete="new-password" required minlength="6" />
+    <label for="password2">Confirmar contrase&ntilde;a</label>
+    <input id="password2" type="password" name="password2" autocomplete="new-password" required />
     ${hidden}
-    <button type="submit">Iniciar sesion</button>
+    <button type="submit">Crear cuenta</button>
     <div class="foot">
-      &iquest;No tienes cuenta? <a href="${ZYNAUTH.paths.register}?${registerQs}">Reg&iacute;strate</a>
+      &iquest;Ya tienes cuenta? <a href="${ZYNAUTH.paths.login}?${esc(new URLSearchParams(
+        Object.fromEntries(
+          PASS_THROUGH.filter((k) => opts.params[k] != null).map((k) => [k, opts.params[k]]),
+        ),
+      ).toString())}">Inicia sesi&oacute;n</a>
       &middot; Protegido por ZynAuth
     </div>
   </form>

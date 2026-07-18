@@ -25,6 +25,7 @@ export const ZYNAUTH = {
     userinfo: '/oauth2/userinfo',
     logout: '/oauth2/logout',
     login: '/oauth2/login',
+    register: '/oauth2/register',
   },
   ttl: {
     authCodeSeconds: 60 * 5, // 5 min

@@ -14,6 +14,7 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SigningKeyService } from '../keys/signing-key.service';
 import { OAuthClientService } from '../clients/oauth-client.service';
+import { AppUserService } from '../app-users/app-user.service';
 import { getIssuer, ZYNAUTH } from '../zynauth.config';
 
 const enc = new TextEncoder();
@@ -28,6 +29,15 @@ function sessionSecret(): Uint8Array {
       process.env.JWT_SECRET ||
       'zyncloud-secret-change-in-production',
   );
+}
+
+/** Sujeto normalizado valido tanto para User (ZynCloud) como AppUser. */
+export interface AuthSubject {
+  id: string;
+  email: string;
+  name: string;
+  emailVerified: boolean;
+  picture: string | null;
 }
 
 export interface AuthorizeParams {
@@ -46,73 +56,58 @@ export class OidcService {
     private readonly prisma: PrismaService,
     private readonly keys: SigningKeyService,
     private readonly clients: OAuthClientService,
+    private readonly appUsers: AppUserService,
   ) {}
 
   // ---------------------------------------------------------------------------
-  // Sesion SSO del IdP (cookie httpOnly). Es el "estoy logueado en ZynAuth".
+  // Sesion SSO del IdP (cookie httpOnly).
   // ---------------------------------------------------------------------------
-  async createSessionToken(userId: string): Promise<string> {
-    return new SignJWT({ typ: 'zynauth-session' })
+  async createSessionToken(subjectId: string, isAppUser: boolean): Promise<string> {
+    return new SignJWT({ typ: 'zynauth-session', ...(isAppUser ? { app: true } : {}) })
       .setProtectedHeader({ alg: 'HS256' })
-      .setSubject(userId)
+      .setSubject(subjectId)
       .setIssuedAt()
       .setExpirationTime(`${ZYNAUTH.ttl.sessionSeconds}s`)
       .sign(sessionSecret());
   }
 
-  async verifySessionToken(token: string): Promise<string | null> {
+  async verifySessionToken(token: string): Promise<{ id: string; isAppUser: boolean } | null> {
     try {
       const { payload } = await jwtVerify(token, sessionSecret());
       if (payload.typ && payload.typ !== 'zynauth-session') return null;
-      return typeof payload.sub === 'string' ? payload.sub : null;
+      if (typeof payload.sub !== 'string') return null;
+      return { id: payload.sub, isAppUser: payload.app === true };
     } catch {
       return null;
     }
   }
 
   /** Ticket efimero entre "password OK" y "verifica tu 2FA". Vive 5 min. */
-  async createMfaTicket(userId: string): Promise<string> {
-    return new SignJWT({ typ: 'zynauth-mfa' })
+  async createMfaTicket(subjectId: string, isAppUser: boolean): Promise<string> {
+    return new SignJWT({ typ: 'zynauth-mfa', ...(isAppUser ? { app: true } : {}) })
       .setProtectedHeader({ alg: 'HS256' })
-      .setSubject(userId)
+      .setSubject(subjectId)
       .setIssuedAt()
       .setExpirationTime('5m')
       .sign(sessionSecret());
   }
 
-  async verifyMfaTicket(token: string): Promise<string | null> {
+  async verifyMfaTicket(token: string): Promise<{ id: string; isAppUser: boolean } | null> {
     try {
       const { payload } = await jwtVerify(token, sessionSecret());
       if (payload.typ !== 'zynauth-mfa') return null;
-      return typeof payload.sub === 'string' ? payload.sub : null;
+      if (typeof payload.sub !== 'string') return null;
+      return { id: payload.sub, isAppUser: payload.app === true };
     } catch {
       return null;
     }
   }
 
   // ---------------------------------------------------------------------------
-  // Credenciales (backend del "user pool": reutiliza los usuarios de ZynCloud).
+  // Credenciales: autentica AppUser del pool de ese client_id.
   // ---------------------------------------------------------------------------
-  async validateCredentials(email: string, password: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { email: email.trim().toLowerCase() },
-    });
-    if (!user || !user.password) return null;
-    if (user.lockedUntil && user.lockedUntil > new Date()) {
-      throw new UnauthorizedException('Cuenta bloqueada temporalmente');
-    }
-    const ok = await bcrypt.compare(password, user.password);
-    if (!ok) {
-      await this.registerFailedLogin(user.id);
-      return null;
-    }
-    if (user.failedLoginAttempts > 0) {
-      await this.prisma.user.update({
-        where: { id: user.id },
-        data: { failedLoginAttempts: 0, lockedUntil: null },
-      });
-    }
-    return user;
+  async validateCredentials(email: string, password: string, clientId: string) {
+    return this.appUsers.validateCredentials(clientId, email, password);
   }
 
   private async registerFailedLogin(userId: string) {
@@ -131,7 +126,11 @@ export class OidcService {
   // ---------------------------------------------------------------------------
   // Authorization Code + PKCE
   // ---------------------------------------------------------------------------
-  async createAuthCode(userId: string, params: AuthorizeParams): Promise<string> {
+  async createAuthCode(
+    subjectId: string,
+    params: AuthorizeParams,
+    isAppUser: boolean,
+  ): Promise<string> {
     const client = await this.clients.getOrThrow(params.clientId);
     if (!this.clients.isRedirectAllowed(client, params.redirectUri)) {
       throw new BadRequestException('redirect_uri no permitido para este cliente');
@@ -142,7 +141,7 @@ export class OidcService {
         code,
         clientId: params.clientId,
         oauthClientId: client.id,
-        userId,
+        ...(isAppUser ? { appUserId: subjectId } : { userId: subjectId }),
         redirectUri: params.redirectUri,
         scope: params.scope,
         nonce: params.nonce,
@@ -162,14 +161,12 @@ export class OidcService {
   }) {
     const record = await this.prisma.authCode.findUnique({
       where: { code: input.code },
-      include: { user: true, client: true },
+      include: { user: true, appUser: true, client: true },
     });
     if (!record) throw new BadRequestException('code invalido');
     if (record.consumedAt) throw new BadRequestException('code ya utilizado');
-    if (record.expiresAt < new Date())
-      throw new BadRequestException('code expirado');
-    if (record.clientId !== input.clientId)
-      throw new BadRequestException('client_id no coincide');
+    if (record.expiresAt < new Date()) throw new BadRequestException('code expirado');
+    if (record.clientId !== input.clientId) throw new BadRequestException('client_id no coincide');
     if (record.redirectUri !== input.redirectUri)
       throw new BadRequestException('redirect_uri no coincide');
 
@@ -179,9 +176,7 @@ export class OidcService {
         throw new BadRequestException('code_verifier requerido (PKCE)');
       const method = record.codeChallengeMethod || 'plain';
       const derived =
-        method === 'S256'
-          ? sha256base64url(input.codeVerifier)
-          : input.codeVerifier;
+        method === 'S256' ? sha256base64url(input.codeVerifier) : input.codeVerifier;
       const a = Buffer.from(derived);
       const b = Buffer.from(record.codeChallenge);
       if (a.length !== b.length || !timingSafeEqual(a, b)) {
@@ -189,27 +184,38 @@ export class OidcService {
       }
     }
 
-    // Consumir el code (uso unico).
     await this.prisma.authCode.update({
       where: { code: record.code },
       data: { consumedAt: new Date() },
     });
 
-    return this.issueTokens(record.user, record.client, record.scope, record.nonce);
+    const isAppUser = !!record.appUser && !record.user;
+    const raw = record.appUser ?? record.user;
+    if (!raw) throw new BadRequestException('usuario no encontrado');
+    const subject: AuthSubject = {
+      id: raw.id,
+      email: raw.email,
+      name: raw.name ?? '',
+      emailVerified: raw.emailVerified,
+      picture: 'picture' in raw ? (raw.picture as string | null) : null,
+    };
+
+    return this.issueTokens(subject, record.client, record.scope, record.nonce, isAppUser);
   }
 
   // ---------------------------------------------------------------------------
-  // Emision de tokens (id / access / refresh)
+  // Emision de tokens
   // ---------------------------------------------------------------------------
   async issueTokens(
-    user: { id: string; email: string; name: string; emailVerified: boolean; picture: string | null },
+    subject: AuthSubject,
     client: { id: string; clientId: string },
     scope: string,
     nonce?: string | null,
+    isAppUser = false,
   ) {
     const now = Math.floor(Date.now() / 1000);
-    const accessToken = await this.signAccessToken(user, client.clientId, scope, now);
-    const idToken = await this.signIdToken(user, client.clientId, scope, now, nonce);
+    const accessToken = await this.signAccessToken(subject, client.clientId, scope, now, isAppUser);
+    const idToken = await this.signIdToken(subject, client.clientId, scope, now, nonce, isAppUser);
 
     const result: Record<string, unknown> = {
       access_token: accessToken,
@@ -220,27 +226,34 @@ export class OidcService {
     };
 
     if (scope.split(' ').includes('offline_access')) {
-      result.refresh_token = await this.createRefreshToken(user.id, client.id, scope);
+      result.refresh_token = await this.createRefreshToken(
+        subject.id,
+        isAppUser,
+        client.id,
+        scope,
+      );
     }
     return result;
   }
 
   private async signAccessToken(
-    user: { id: string; email: string },
+    subject: AuthSubject,
     aud: string,
     scope: string,
     now: number,
+    isAppUser: boolean,
   ) {
     const { privateKey, kid, alg } = await this.keys.getSigningKey();
     return new SignJWT({
       token_use: 'access',
       scope,
       client_id: aud,
-      email: user.email,
+      email: subject.email,
+      ...(isAppUser ? { user_source: 'app' } : {}),
     })
       .setProtectedHeader({ alg, kid })
       .setIssuer(getIssuer())
-      .setSubject(user.id)
+      .setSubject(subject.id)
       .setAudience(aud)
       .setIssuedAt(now)
       .setExpirationTime(now + ZYNAUTH.ttl.accessTokenSeconds)
@@ -248,29 +261,34 @@ export class OidcService {
   }
 
   private async signIdToken(
-    user: { id: string; email: string; name: string; emailVerified: boolean; picture: string | null },
+    subject: AuthSubject,
     aud: string,
     scope: string,
     now: number,
     nonce?: string | null,
+    isAppUser = false,
   ) {
     const { privateKey, kid, alg } = await this.keys.getSigningKey();
     const scopes = scope.split(' ');
-    const claims: Record<string, unknown> = { token_use: 'id', auth_time: now };
+    const claims: Record<string, unknown> = {
+      token_use: 'id',
+      auth_time: now,
+      ...(isAppUser ? { user_source: 'app' } : {}),
+    };
     if (scopes.includes('email')) {
-      claims.email = user.email;
-      claims.email_verified = user.emailVerified;
+      claims.email = subject.email;
+      claims.email_verified = subject.emailVerified;
     }
     if (scopes.includes('profile')) {
-      claims.name = user.name;
-      if (user.picture) claims.picture = user.picture;
+      claims.name = subject.name;
+      if (subject.picture) claims.picture = subject.picture;
     }
     if (nonce) claims.nonce = nonce;
 
     return new SignJWT(claims)
       .setProtectedHeader({ alg, kid })
       .setIssuer(getIssuer())
-      .setSubject(user.id)
+      .setSubject(subject.id)
       .setAudience(aud)
       .setIssuedAt(now)
       .setExpirationTime(now + ZYNAUTH.ttl.idTokenSeconds)
@@ -278,15 +296,20 @@ export class OidcService {
   }
 
   // ---------------------------------------------------------------------------
-  // Refresh tokens (opacos, con rotacion; solo se guarda el hash)
+  // Refresh tokens
   // ---------------------------------------------------------------------------
-  private async createRefreshToken(userId: string, oauthClientId: string, scope: string) {
+  private async createRefreshToken(
+    subjectId: string,
+    isAppUser: boolean,
+    oauthClientId: string,
+    scope: string,
+  ) {
     const raw = randomBytes(40).toString('base64url');
     await this.prisma.oidcRefreshToken.create({
       data: {
         tokenHash: sha256base64url(raw),
         scope,
-        userId,
+        ...(isAppUser ? { appUserId: subjectId } : { userId: subjectId }),
         oauthClientId,
         expiresAt: new Date(Date.now() + ZYNAUTH.ttl.refreshTokenSeconds * 1000),
       },
@@ -299,7 +322,7 @@ export class OidcService {
     const hash = sha256base64url(input.refreshToken);
     const record = await this.prisma.oidcRefreshToken.findUnique({
       where: { tokenHash: hash },
-      include: { user: true, client: true },
+      include: { user: true, appUser: true, client: true },
     });
     if (!record || record.revokedAt || record.expiresAt < new Date()) {
       throw new UnauthorizedException('refresh_token invalido o expirado');
@@ -308,16 +331,27 @@ export class OidcService {
       throw new UnauthorizedException('refresh_token no pertenece a este cliente');
     }
 
-    // Rotacion: revoca el actual y emite uno nuevo.
     await this.prisma.oidcRefreshToken.update({
       where: { id: record.id },
       data: { revokedAt: new Date() },
     });
-    return this.issueTokens(record.user, record.client, record.scope);
+
+    const isAppUser = !!record.appUser && !record.user;
+    const raw = record.appUser ?? record.user;
+    if (!raw) throw new UnauthorizedException('usuario no encontrado');
+    const subject: AuthSubject = {
+      id: raw.id,
+      email: raw.email,
+      name: raw.name ?? '',
+      emailVerified: raw.emailVerified,
+      picture: 'picture' in raw ? (raw.picture as string | null) : null,
+    };
+
+    return this.issueTokens(subject, record.client, record.scope, undefined, isAppUser);
   }
 
   // ---------------------------------------------------------------------------
-  // Verificacion local + /userinfo
+  // Verificacion + /userinfo
   // ---------------------------------------------------------------------------
   private async localJwks() {
     const jwks = (await this.keys.getJwks()) as JSONWebKeySet;
@@ -339,19 +373,32 @@ export class OidcService {
 
   async getUserInfo(accessToken: string) {
     const payload = await this.verifyAccessToken(accessToken);
-    const user = await this.prisma.user.findUnique({
-      where: { id: String(payload.sub) },
-    });
-    if (!user) throw new UnauthorizedException('Usuario no encontrado');
+    const sub = String(payload.sub);
+    const isApp = payload.user_source === 'app';
     const scopes = String(payload.scope || '').split(' ');
-    const info: Record<string, unknown> = { sub: user.id };
-    if (scopes.includes('email')) {
-      info.email = user.email;
-      info.email_verified = user.emailVerified;
-    }
-    if (scopes.includes('profile')) {
-      info.name = user.name;
-      if (user.picture) info.picture = user.picture;
+    const info: Record<string, unknown> = { sub };
+
+    if (isApp) {
+      const appUser = await this.prisma.appUser.findUnique({ where: { id: sub } });
+      if (!appUser) throw new UnauthorizedException('Usuario no encontrado');
+      if (scopes.includes('email')) {
+        info.email = appUser.email;
+        info.email_verified = appUser.emailVerified;
+      }
+      if (scopes.includes('profile')) {
+        info.name = appUser.name ?? '';
+      }
+    } else {
+      const user = await this.prisma.user.findUnique({ where: { id: sub } });
+      if (!user) throw new UnauthorizedException('Usuario no encontrado');
+      if (scopes.includes('email')) {
+        info.email = user.email;
+        info.email_verified = user.emailVerified;
+      }
+      if (scopes.includes('profile')) {
+        info.name = user.name;
+        if (user.picture) info.picture = user.picture;
+      }
     }
     return info;
   }

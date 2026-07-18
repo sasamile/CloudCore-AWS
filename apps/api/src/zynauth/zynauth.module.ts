@@ -10,21 +10,19 @@ import { OidcDiscoveryController } from './oidc/oidc-discovery.controller';
 import { MfaService } from './mfa/mfa.service';
 import { MfaController } from './mfa/mfa.controller';
 import { CredentialsModule } from './credentials/credentials.module';
+import { AppUserService } from './app-users/app-user.service';
+import { AppUsersController } from './app-users/app-users.controller';
 
-/**
- * ZynAuth — Proveedor de identidad OIDC de Zyntek (tu "Cognito").
- * Expone: descubrimiento OIDC, JWKS, /authorize, /token, /userinfo, /logout
- * y la administracion de apps (clients).
- */
 @Module({
   imports: [PrismaModule, AuthModule, CredentialsModule],
   controllers: [
     OidcDiscoveryController,
     OidcController,
     OAuthClientsController,
+    AppUsersController,
     MfaController,
   ],
-  providers: [SigningKeyService, OAuthClientService, OidcService, MfaService],
-  exports: [OidcService, SigningKeyService, OAuthClientService, MfaService],
+  providers: [SigningKeyService, OAuthClientService, AppUserService, OidcService, MfaService],
+  exports: [OidcService, SigningKeyService, OAuthClientService, MfaService, AppUserService],
 })
 export class ZynAuthModule {}

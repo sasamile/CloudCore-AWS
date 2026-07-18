@@ -17,7 +17,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Boxes, Plus, Loader2, Copy, Check, AlertTriangle, Pencil, Trash2 } from "lucide-react"
+import Link from "next/link"
+import { Boxes, Plus, Loader2, Copy, Check, AlertTriangle, Pencil, Trash2, Users } from "lucide-react"
 
 interface OAuthClient {
   id: string
@@ -191,6 +192,9 @@ export default function AppsPage() {
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <code className="font-mono text-xs text-muted-foreground hidden sm:inline">{c.clientId}</code>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Usuarios" asChild>
+                      <Link href={`/dashboard/apps/${c.clientId}/users`}><Users className="w-3.5 h-3.5" /></Link>
+                    </Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(c)}>
                       <Pencil className="w-3.5 h-3.5" />
                     </Button>
