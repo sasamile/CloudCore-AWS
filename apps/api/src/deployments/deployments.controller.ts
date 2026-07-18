@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
 import { IsOptional, IsString, MinLength } from 'class-validator';
 import { JwtAuthGuard, CurrentUser } from '../auth/auth.guard';
 import { DeploymentsService } from './deployments.service';
+import { IntegrationsService } from '../integrations/integrations.service';
 
 class CreateDeploymentDto {
   @IsString()
@@ -20,7 +21,10 @@ class CreateDeploymentDto {
 @Controller('deployments')
 @UseGuards(JwtAuthGuard)
 export class DeploymentsController {
-  constructor(private readonly deployments: DeploymentsService) {}
+  constructor(
+    private readonly deployments: DeploymentsService,
+    private readonly integrations: IntegrationsService,
+  ) {}
 
   @Get()
   list(@CurrentUser() user: { id: string }) {
@@ -28,8 +32,11 @@ export class DeploymentsController {
   }
 
   @Post()
-  create(@CurrentUser() user: { id: string }, @Body() dto: CreateDeploymentDto) {
-    return this.deployments.create(user.id, dto);
+  async create(@CurrentUser() user: { id: string }, @Body() dto: CreateDeploymentDto) {
+    const deployment = await this.deployments.create(user.id, dto);
+    // Registra el webhook en GitHub automáticamente (no bloquea si falla)
+    this.integrations.ensureGithubWebhook(user.id, dto.repoFullName).catch(() => {});
+    return deployment;
   }
 
   @Post(':id/trigger')

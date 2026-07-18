@@ -19,7 +19,9 @@ function corsOrigins(): string | string[] | boolean {
 }
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    rawBody: true,
+  });
   app.enableShutdownHooks();
 
   app.enableCors({

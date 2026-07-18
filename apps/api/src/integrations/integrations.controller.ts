@@ -8,8 +8,12 @@ import {
   Param,
   Res,
   UseGuards,
+  Headers,
+  HttpCode,
+  RawBodyRequest,
+  Req,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { IsString, IsOptional } from 'class-validator';
 import { IntegrationsService } from './integrations.service';
 import { JwtAuthGuard, CurrentUser } from '../auth/auth.guard';
@@ -98,6 +102,34 @@ export class IntegrationsController {
   @UseGuards(JwtAuthGuard)
   disconnect(@CurrentUser() user: { id: string }, @Param('provider') provider: string) {
     return this.integrations.disconnect(user.id, provider);
+  }
+
+  /** Webhook de GitHub — recibe eventos push y dispara auto-deployments. */
+  @Post('github/webhook')
+  @HttpCode(200)
+  async githubWebhook(
+    @Req() req: RawBodyRequest<Request>,
+    @Headers('x-hub-signature-256') signature: string | undefined,
+    @Headers('x-github-event') event: string | undefined,
+    @Res() res: Response,
+  ) {
+    const rawBody = req.rawBody;
+    if (!rawBody) return res.status(400).json({ error: 'rawBody no disponible' });
+
+    if (!this.integrations.verifyGithubWebhookSignature(rawBody, signature)) {
+      return res.status(401).json({ error: 'firma inválida' });
+    }
+
+    if (event === 'ping') return res.json({ ok: true });
+    if (event !== 'push') return res.json({ ok: true, skipped: true });
+
+    let payload: any;
+    try { payload = JSON.parse(rawBody.toString('utf8')); } catch {
+      return res.status(400).json({ error: 'payload inválido' });
+    }
+
+    const result = await this.integrations.handleGithubWebhookPush(payload);
+    return res.json({ ok: true, ...result });
   }
 
   @Get('google/authorize')

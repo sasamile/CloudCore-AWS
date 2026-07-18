@@ -2,11 +2,12 @@ import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
 import { DockerModule } from '../docker/docker.module';
+import { IntegrationsModule } from '../integrations/integrations.module';
 import { DeploymentsService } from './deployments.service';
 import { DeploymentsController } from './deployments.controller';
 
 @Module({
-  imports: [PrismaModule, AuthModule, DockerModule],
+  imports: [PrismaModule, AuthModule, DockerModule, IntegrationsModule],
   controllers: [DeploymentsController],
   providers: [DeploymentsService],
   exports: [DeploymentsService],

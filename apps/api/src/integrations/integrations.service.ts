@@ -265,11 +265,195 @@ export class IntegrationsService {
     }
   }
 
+  /**
+   * Registra automáticamente el webhook en el repo de GitHub para que cada push
+   * dispare un auto-deploy. Si ya existe un webhook apuntando a nuestra URL, no duplica.
+   */
+  async ensureGithubWebhook(userId: string, repoFullName: string): Promise<void> {
+    const webhookUrl = process.env.GITHUB_WEBHOOK_CALLBACK_URL?.trim();
+    const webhookSecret = process.env.GITHUB_WEBHOOK_SECRET?.trim();
+    if (!webhookUrl || !webhookSecret) {
+      this.logger.warn('GITHUB_WEBHOOK_CALLBACK_URL o GITHUB_WEBHOOK_SECRET no configurados: webhook auto-registro omitido');
+      return;
+    }
+
+    let token: string;
+    try {
+      token = await this.getGithubToken(userId);
+    } catch {
+      return;
+    }
+
+    const [owner, repo] = repoFullName.split('/');
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'ZynCloud',
+      'Content-Type': 'application/json',
+    };
+
+    // Verifica si ya existe un webhook con nuestra URL
+    try {
+      const listRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/hooks`, { headers });
+      if (listRes.ok) {
+        const hooks = await listRes.json() as Array<{ config?: { url?: string } }>;
+        const alreadyExists = hooks.some((h) => h.config?.url === webhookUrl);
+        if (alreadyExists) {
+          this.logger.log(`Webhook ya existía en ${repoFullName}`);
+          return;
+        }
+      }
+    } catch { /* no bloquear si falla el check */ }
+
+    // Crea el webhook
+    try {
+      const createRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/hooks`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          name: 'web',
+          active: true,
+          events: ['push'],
+          config: {
+            url: webhookUrl,
+            content_type: 'json',
+            secret: webhookSecret,
+            insecure_ssl: '0',
+          },
+        }),
+      });
+
+      if (createRes.ok) {
+        this.logger.log(`Webhook registrado en ${repoFullName} → ${webhookUrl}`);
+      } else {
+        const err = await createRes.text();
+        this.logger.warn(`No se pudo registrar webhook en ${repoFullName}: ${createRes.status} ${err}`);
+      }
+    } catch (err) {
+      this.logger.warn(`Error registrando webhook en ${repoFullName}: ${(err as Error).message}`);
+    }
+  }
+
   async listDeployments(userId: string, instanceId?: string) {
     return this.prisma.deployment.findMany({
       where: { userId, ...(instanceId ? { instanceId } : {}) },
       orderBy: { updatedAt: 'desc' },
       include: { instance: { select: { id: true, name: true } } },
+    });
+  }
+
+  /** Verifica firma HMAC-SHA256 del webhook de GitHub. */
+  verifyGithubWebhookSignature(rawBody: Buffer, signatureHeader: string | undefined): boolean {
+    const secret = process.env.GITHUB_WEBHOOK_SECRET?.trim();
+    if (!secret || !signatureHeader?.startsWith('sha256=')) return false;
+    const expected = createHmac('sha256', secret).update(rawBody).digest('hex');
+    try {
+      const a = Buffer.from(signatureHeader.slice('sha256='.length), 'utf8');
+      const b = Buffer.from(expected, 'utf8');
+      return a.length === b.length && timingSafeEqual(a, b);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Maneja el webhook de push de GitHub.
+   * Encuentra todos los Deployments configurados para ese repo+rama y los re-dispara.
+   */
+  async handleGithubWebhookPush(payload: {
+    ref: string;
+    repository: { full_name: string };
+    pusher?: { name?: string };
+    head_commit?: { message?: string; id?: string };
+  }) {
+    const branch = payload.ref?.replace('refs/heads/', '');
+    const repoFullName = payload.repository?.full_name;
+    if (!branch || !repoFullName) return { triggered: 0 };
+
+    // Ignora pushes de borrado de rama
+    if (payload.ref === '0000000000000000000000000000000000000000') return { triggered: 0 };
+
+    const configs = await this.prisma.deployment.findMany({
+      where: { repoFullName, branch },
+      include: { instance: true, user: { select: { id: true } } },
+    });
+
+    if (configs.length === 0) {
+      this.logger.log(`GitHub webhook push ${repoFullName}@${branch}: sin deployments configurados`);
+      return { triggered: 0 };
+    }
+
+    let triggered = 0;
+    for (const dep of configs) {
+      try {
+        if (!dep.instance.containerId || dep.instance.status !== 'running') {
+          this.logger.warn(`Deployment ${dep.id}: instancia ${dep.instanceId} no está corriendo, omitiendo`);
+          continue;
+        }
+        await this.triggerDeploymentInternal(dep, dep.user.id);
+        triggered++;
+      } catch (err) {
+        this.logger.error(`Auto-deploy ${dep.id} falló: ${(err as Error).message}`);
+      }
+    }
+
+    this.logger.log(`GitHub webhook push ${repoFullName}@${branch}: ${triggered}/${configs.length} disparados`);
+    return { triggered };
+  }
+
+  /** Dispara un deployment existente (reutiliza la config guardada). */
+  private async triggerDeploymentInternal(
+    dep: {
+      id: string;
+      repoFullName: string;
+      branch: string;
+      rootDir: string;
+      buildCommand: string | null;
+      startCommand: string | null;
+      instance: { containerId: string | null };
+    },
+    userId: string,
+  ) {
+    await this.prisma.deployment.update({
+      where: { id: dep.id },
+      data: { status: 'deploying', lastLog: 'Auto-deploy iniciado por push a GitHub...' },
+    });
+
+    const token = await this.getGithubToken(userId);
+    const appDir = '/home/ubuntu/app';
+    const workDir = dep.rootDir === '.' ? appDir : `${appDir}/${dep.rootDir}`;
+    const cloneUrl = `https://x-access-token:${token}@github.com/${dep.repoFullName}.git`;
+    const buildCommand = dep.buildCommand || 'npm install && npm run build';
+    const startCommand = dep.startCommand || 'nohup npm start > /tmp/app.log 2>&1 &';
+
+    const script = [
+      'set -e',
+      `mkdir -p ${appDir}`,
+      `cd ${appDir}`,
+      `if [ -d .git ]; then git fetch origin && git checkout ${dep.branch} && git pull origin ${dep.branch}; else git clone --branch ${dep.branch} --depth 1 "${cloneUrl}" .; fi`,
+      `cd ${workDir}`,
+      buildCommand,
+      'pkill -f "node /home/ubuntu/app" 2>/dev/null || true',
+      startCommand,
+      'sleep 2',
+      'echo DEPLOY_OK',
+    ].join(' && ');
+
+    // Corre en background — el webhook responde rápido
+    setImmediate(async () => {
+      try {
+        const output = await this.docker.execDetached(dep.instance.containerId!, ['/bin/bash', '-c', script]);
+        await this.prisma.deployment.update({
+          where: { id: dep.id },
+          data: { status: 'success', lastLog: output.slice(-4000) },
+        });
+      } catch (err) {
+        await this.prisma.deployment.update({
+          where: { id: dep.id },
+          data: { status: 'error', lastLog: (err as Error).message },
+        });
+      }
     });
   }
 

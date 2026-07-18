@@ -25,6 +25,7 @@
     "@xterm/xterm": "^5.5.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "date-fns": "^4.4.0",
     "geist": "^1.7.2",
     "lucide-react": "^0.460.0",
     "next": "14.2.21",
