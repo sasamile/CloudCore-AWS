@@ -236,20 +236,24 @@ export class IntegrationsService {
     const install = 'npm install';
 
     if (deps['next']) {
+      // Usamos el CLI directamente con -p $PORT para evitar que el package.json
+      // tenga "next start -p 3000" hardcodeado y bloquee el puerto asignado.
       return {
         framework: 'Next.js',
         buildCommand: `${install} && npm run build`,
-        startCommand: 'npm run start',
+        startCommand: 'node_modules/.bin/next start -p $PORT',
       };
     }
     if (deps['@nestjs/core']) {
+      // NestJS lee process.env.PORT en main.ts; pasamos PORT como env var.
       return {
         framework: 'NestJS',
         buildCommand: `${install} && npm run build`,
-        startCommand: scripts['start:prod'] ? 'npm run start:prod' : 'npm run start',
+        startCommand: 'node dist/main.js',
       };
     }
     if (deps['vite']) {
+      // Vite build produce dist/ estático; se sirve con `serve`.
       return {
         framework: 'Vite',
         buildCommand: `${install} && npm run build`,
@@ -277,7 +281,7 @@ export class IntegrationsService {
         startCommand: 'npx --yes serve -s dist -l $PORT',
       };
     }
-    // Node genérico: usa build si existe, arranca con npm start.
+    // Node genérico: inyectamos PORT explícitamente en el script.
     if (scripts['start']) {
       return {
         framework: 'Node',
