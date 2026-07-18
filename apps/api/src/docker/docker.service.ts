@@ -130,13 +130,16 @@ export class DockerService {
     timeoutMs = 10 * 60 * 1000,
   ): Promise<{ output: string; timedOut: boolean }> {
     const container = this.docker.getContainer(containerId);
+    // Usamos Tty:true para evitar el multiplexado binario de stdout/stderr.
+    // Con Tty:true el stream es raw text (stdout+stderr mezclados), lo que
+    // es perfecto para capturar el output del build/deploy.
     const exec = await container.exec({
-      Cmd: ['bash', '-lc', script],
+      Cmd: ['bash', '-c', script],
       AttachStdout: true,
       AttachStderr: true,
-      Tty: false,
+      Tty: true,
     });
-    const stream = await exec.start({ Detach: false, Tty: false });
+    const stream = await exec.start({ Detach: false, Tty: true });
     return new Promise((resolve) => {
       const chunks: Buffer[] = [];
       let done = false;

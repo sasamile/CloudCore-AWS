@@ -118,11 +118,47 @@ export class DeploymentsService {
     });
 
     // No esperamos: corre en background y actualiza estado/logs.
-    this.runPipeline(dep.id, fresh.containerId, userId, dep).catch((e) =>
-      this.logger.error(`Deploy ${dep.id} falló: ${(e as Error).message}`),
-    );
+    this.runPipeline(dep.id, fresh.containerId, userId, dep).catch(async (e) => {
+      const msg = (e as Error).message || 'Error desconocido al iniciar despliegue';
+      this.logger.error(`Deploy ${dep.id} falló: ${msg}`);
+      await this.prisma.deployment.update({
+        where: { id: dep.id },
+        data: { status: 'error', lastLog: msg },
+      }).catch(() => {});
+    });
 
     return { status: 'building', deploymentId: dep.id };
+  }
+
+  /** Elimina el proyecto: detiene el proceso en la instancia y borra el registro. */
+  async remove(userId: string, deploymentId: string) {
+    const dep = await this.prisma.deployment.findFirst({
+      where: { id: deploymentId, userId },
+      include: { instance: true },
+    });
+    if (!dep) throw new NotFoundException('Proyecto no encontrado');
+
+    if (dep.instance.containerId && dep.instance.status === 'running') {
+      const dirName = dep.repoFullName.split('/').pop() || 'app';
+      const appName = dirName.replace(/[^a-zA-Z0-9_-]/g, '-');
+      const cleanup = [
+        'set +e',
+        `pkill -f "${appName}-run" || true`,
+        `rm -rf "/apps/${dirName}" || true`,
+        `rm -f "/var/log/${appName}.log" || true`,
+        'echo "== REMOVED =="',
+      ].join('\n');
+      try {
+        await this.docker.runScript(dep.instance.containerId, cleanup);
+      } catch (e) {
+        this.logger.warn(
+          `Cleanup de ${deploymentId} falló (se borra el registro igual): ${(e as Error).message}`,
+        );
+      }
+    }
+
+    await this.prisma.deployment.delete({ where: { id: dep.id } });
+    return { ok: true };
   }
 
   private async runPipeline(

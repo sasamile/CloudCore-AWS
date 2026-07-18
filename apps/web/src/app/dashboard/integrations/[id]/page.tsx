@@ -21,7 +21,9 @@ import {
   Terminal,
   Zap,
   ExternalLink,
+  Trash2,
 } from "lucide-react"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 interface Deployment {
   id: string
@@ -55,6 +57,8 @@ export default function DeploymentDetailPage() {
   const [dep, setDep] = useState<Deployment | null>(null)
   const [loading, setLoading] = useState(true)
   const [deploying, setDeploying] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -88,6 +92,24 @@ export default function DeploymentDetailPage() {
       toast({ title: "Error", description: formatApiError(err instanceof Error ? err.message : undefined), variant: "destructive" })
     } finally {
       setDeploying(false)
+    }
+  }
+
+  async function removeProject() {
+    setDeleting(true)
+    try {
+      await api.delete(`/deployments/${id}`)
+      toast({ title: "Proyecto eliminado" })
+      router.push("/dashboard/integrations")
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: formatApiError(err instanceof Error ? err.message : undefined),
+        variant: "destructive",
+      })
+    } finally {
+      setDeleting(false)
+      setConfirmDelete(false)
     }
   }
 
@@ -136,10 +158,21 @@ export default function DeploymentDetailPage() {
                   {dep.repoFullName} <ExternalLink className="size-3" />
                 </a>
               </div>
-              <Button className="h-9 gap-1.5 shrink-0" onClick={redeploy} disabled={deploying || busy}>
-                {deploying || busy ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
-                {busy ? "Desplegando..." : "Redeploy"}
-              </Button>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  variant="outline"
+                  className="h-9 gap-1.5 text-muted-foreground hover:text-destructive"
+                  onClick={() => setConfirmDelete(true)}
+                  disabled={deleting}
+                >
+                  {deleting ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                  Eliminar
+                </Button>
+                <Button className="h-9 gap-1.5" onClick={redeploy} disabled={deploying || busy || deleting}>
+                  {deploying || busy ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
+                  {busy ? "Desplegando..." : "Redeploy"}
+                </Button>
+              </div>
             </div>
 
             {/* Info grid */}
@@ -191,6 +224,18 @@ export default function DeploymentDetailPage() {
           </>
         )}
       </PageShell>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Eliminar proyecto?"
+        description={`${repoName} dejará de desplegarse. Se detendrá el proceso y se borrará de la lista. Esta acción no se puede deshacer.`}
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
+        destructive
+        loading={deleting}
+        onConfirm={() => void removeProject()}
+      />
     </>
   )
 }

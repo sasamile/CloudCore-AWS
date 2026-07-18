@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { IsOptional, IsString, MinLength } from 'class-validator';
 import { JwtAuthGuard, CurrentUser } from '../auth/auth.guard';
 import { DeploymentsService } from './deployments.service';
@@ -56,5 +56,10 @@ export class DeploymentsController {
   @Post(':id/trigger')
   trigger(@CurrentUser() user: { id: string }, @Param('id') id: string) {
     return this.deployments.trigger(user.id, id);
+  }
+
+  @Delete(':id')
+  remove(@CurrentUser() user: { id: string }, @Param('id') id: string) {
+    return this.deployments.remove(user.id, id);
   }
 }

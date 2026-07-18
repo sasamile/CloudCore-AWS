@@ -31,8 +31,10 @@ import {
   Zap,
   ChevronRight,
   Sparkles,
+  Trash2,
 } from "lucide-react"
 import { StatusBadge } from "@/components/deployments/status-badge"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { formatDistanceToNow } from "date-fns"
 import { es } from "date-fns/locale"
 
@@ -64,10 +66,18 @@ interface Deployment {
   updatedAt: string
 }
 
-function ProjectCard({ dep, onDeploy, onOpen }: {
+function ProjectCard({
+  dep,
+  onDeploy,
+  onOpen,
+  onDelete,
+  deleting,
+}: {
   dep: Deployment
   onDeploy: (id: string) => void
   onOpen: (id: string) => void
+  onDelete: (id: string) => void
+  deleting?: boolean
 }) {
   const timeAgo = formatDistanceToNow(new Date(dep.updatedAt), { addSuffix: true, locale: es })
   const repoName = dep.repoFullName.split("/")[1] ?? dep.repoFullName
@@ -75,8 +85,12 @@ function ProjectCard({ dep, onDeploy, onOpen }: {
 
   return (
     <div className="group rounded-2xl border border-border bg-card hover:border-border/80 transition-colors overflow-hidden">
-      <button onClick={() => onOpen(dep.id)} className="w-full text-left p-5 flex items-start justify-between gap-4">
-        <div className="min-w-0 flex-1 space-y-2">
+      <div className="flex items-start gap-2 p-5">
+        <button
+          type="button"
+          onClick={() => onOpen(dep.id)}
+          className="min-w-0 flex-1 text-left space-y-2"
+        >
           <div className="flex items-center gap-2 flex-wrap">
             <Github className="size-4 shrink-0 text-muted-foreground" />
             <p className="font-semibold text-sm">{repoName}</p>
@@ -95,15 +109,48 @@ function ProjectCard({ dep, onDeploy, onOpen }: {
             <span className="hidden sm:inline text-muted-foreground/50">{dep.repoFullName}</span>
           </div>
           <p className="text-[11px] text-muted-foreground/60">Actualizado {timeAgo}</p>
+        </button>
+        <div className="flex shrink-0 items-center gap-0.5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8 text-muted-foreground hover:text-destructive"
+            disabled={deleting}
+            title="Eliminar proyecto"
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete(dep.id)
+            }}
+          >
+            {deleting ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Trash2 className="size-3.5" />
+            )}
+          </Button>
+          <button
+            type="button"
+            onClick={() => onOpen(dep.id)}
+            className="flex size-8 items-center justify-center rounded-md text-muted-foreground/40 transition-colors hover:bg-muted hover:text-muted-foreground"
+            aria-label="Abrir proyecto"
+          >
+            <ChevronRight className="size-4" />
+          </button>
         </div>
-        <ChevronRight className="size-4 shrink-0 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors mt-0.5" />
-      </button>
+      </div>
       <div className="border-t border-border/50 bg-muted/20 px-5 py-2.5 flex items-center justify-between gap-2">
         <p className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <Zap className="size-3 shrink-0" />
           Auto-deploy en <span className="font-mono font-medium text-foreground">{dep.branch}</span>
         </p>
-        <Button size="sm" variant="outline" className="h-7 gap-1.5 rounded-full px-3 text-xs" onClick={() => onDeploy(dep.id)} disabled={busy}>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 gap-1.5 rounded-full px-3 text-xs"
+          onClick={() => onDeploy(dep.id)}
+          disabled={busy || deleting}
+        >
           {busy ? <Loader2 className="size-3 animate-spin" /> : <Play className="size-3" />}
           {busy ? "Desplegando" : "Redeploy"}
         </Button>
@@ -131,6 +178,8 @@ function IntegrationsContent() {
   const [showImport, setShowImport] = useState(false)
   const [importing, setImporting] = useState(false)
   const [detecting, setDetecting] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const [form, setForm] = useState({
     repoFullName: "",
@@ -261,6 +310,31 @@ function IntegrationsContent() {
     }
   }
 
+  async function handleDelete(id: string) {
+    setDeletingId(id)
+    try {
+      await api.delete(`/deployments/${id}`)
+      setConfirmDeleteId(null)
+      toast({ title: "Proyecto eliminado" })
+      await load()
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: formatApiError(err instanceof Error ? err.message : undefined),
+        variant: "destructive",
+      })
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  const deleteTarget = confirmDeleteId
+    ? deployments.find((d) => d.id === confirmDeleteId)
+    : null
+  const deleteName = deleteTarget
+    ? deleteTarget.repoFullName.split("/")[1] ?? deleteTarget.repoFullName
+    : ""
+
   return (
     <>
       <Header title="Deployments" breadcrumbs={[{ label: "Compute", href: "/dashboard/instances" }]} />
@@ -346,11 +420,34 @@ function IntegrationsContent() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             {deployments.map((d) => (
-              <ProjectCard key={d.id} dep={d} onDeploy={handleDeploy} onOpen={(id) => router.push(`/dashboard/integrations/${id}`)} />
+              <ProjectCard
+                key={d.id}
+                dep={d}
+                onDeploy={handleDeploy}
+                onOpen={(id) => router.push(`/dashboard/integrations/${id}`)}
+                onDelete={(id) => setConfirmDeleteId(id)}
+                deleting={deletingId === d.id}
+              />
             ))}
           </div>
         )}
       </PageShell>
+
+      <ConfirmDialog
+        open={!!confirmDeleteId}
+        onOpenChange={(open) => {
+          if (!open) setConfirmDeleteId(null)
+        }}
+        title="Eliminar proyecto?"
+        description={`${deleteName} dejará de desplegarse. Se detendrá el proceso y se borrará de la lista. Esta acción no se puede deshacer.`}
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
+        destructive
+        loading={!!deletingId}
+        onConfirm={() => {
+          if (confirmDeleteId) void handleDelete(confirmDeleteId)
+        }}
+      />
 
       {/* Import dialog */}
       <Dialog open={showImport} onOpenChange={(o) => !o && setShowImport(false)}>
