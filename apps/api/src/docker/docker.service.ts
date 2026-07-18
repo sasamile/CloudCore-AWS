@@ -130,26 +130,40 @@ export class DockerService {
     timeoutMs = 10 * 60 * 1000,
   ): Promise<{ output: string; timedOut: boolean }> {
     const container = this.docker.getContainer(containerId);
-    // Usamos Tty:true para evitar el multiplexado binario de stdout/stderr.
-    // Con Tty:true el stream es raw text (stdout+stderr mezclados), lo que
-    // es perfecto para capturar el output del build/deploy.
+    // Tty:false → Docker multiplexa stdout/stderr con headers de 8 bytes por frame.
+    // Parseamos esos frames para extraer el texto limpio. Esto es más robusto que
+    // Tty:true porque evita race conditions del PTY al cierre del proceso.
     const exec = await container.exec({
       Cmd: ['bash', '-c', script],
       AttachStdout: true,
       AttachStderr: true,
-      Tty: true,
+      Tty: false,
     });
-    const stream = await exec.start({ Detach: false, Tty: true });
+    const stream = await exec.start({ Detach: false, Tty: false });
     return new Promise((resolve) => {
-      const chunks: Buffer[] = [];
+      const textChunks: string[] = [];
       let done = false;
+      let pending = Buffer.alloc(0);
+
       const finish = (timedOut: boolean) => {
         if (done) return;
         done = true;
-        resolve({ output: Buffer.concat(chunks).toString('utf8'), timedOut });
+        resolve({ output: textChunks.join(''), timedOut });
       };
-      stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+
+      stream.on('data', (chunk: Buffer) => {
+        // Demux del protocolo Docker: cada frame tiene un header de 8 bytes
+        // [tipo(1), 0(3), tamaño(4-BE)] seguido de `tamaño` bytes de datos.
+        pending = Buffer.concat([pending, chunk]);
+        while (pending.length >= 8) {
+          const frameSize = pending.readUInt32BE(4);
+          if (pending.length < 8 + frameSize) break;
+          textChunks.push(pending.slice(8, 8 + frameSize).toString('utf8'));
+          pending = pending.slice(8 + frameSize);
+        }
+      });
       stream.on('end', () => finish(false));
+      stream.on('error', () => finish(false));
       setTimeout(() => finish(true), timeoutMs);
     });
   }

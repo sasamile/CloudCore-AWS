@@ -49,6 +49,7 @@ export function buildDeployScript(dep: DeployTarget, token?: string): string {
     'else',
     '  _NVER="22"',
     'fi',
+    'export _NVER',
     'echo "Node requerido: v${_NVER}"',
     // nvm install es idempotente: si ya está instalado, no descarga de nuevo.
     'nvm install "$_NVER" > /dev/null 2>&1 && nvm use "$_NVER" > /dev/null 2>&1 || true',
