@@ -32,6 +32,7 @@ interface Deployment {
   rootDir: string
   framework: string | null
   port: number | null
+  hostname: string | null
   buildCommand: string | null
   startCommand: string | null
   status: string
@@ -174,6 +175,27 @@ export default function DeploymentDetailPage() {
                 </Button>
               </div>
             </div>
+
+            {/* URL pública */}
+            {dep.hostname && (
+              <a
+                href={`https://${dep.hostname}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group flex items-center justify-between gap-3 rounded-2xl border border-border bg-card px-5 py-4 transition-colors hover:border-foreground/30"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className={`size-2 shrink-0 rounded-full ${dep.status === "success" ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">URL pública</p>
+                    <p className="truncate font-mono text-sm text-foreground">{dep.hostname}</p>
+                  </div>
+                </div>
+                <span className="inline-flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground transition-colors group-hover:text-foreground">
+                  Visitar <ExternalLink className="size-3.5" />
+                </span>
+              </a>
+            )}
 
             {/* Info grid */}
             <div className="rounded-2xl border border-border bg-card p-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">

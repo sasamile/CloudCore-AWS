@@ -62,7 +62,15 @@ export class TunnelService implements OnModuleInit {
 
     const instances = await this.prisma.instance.findMany({
       where: { internalPort: { not: null }, status: { not: 'error' } },
-      select: { name: true, internalPort: true },
+      select: { name: true, internalPort: true, isSystem: true },
+    });
+
+    // Proyectos desplegados (estilo Vercel): cada uno con su hostname público,
+    // enrutado al puerto HTTP (contenedor:80) de su instancia, donde el nginx
+    // interno reparte por Host header a cada puerto de app.
+    const deployments = await this.prisma.deployment.findMany({
+      where: { hostname: { not: null } },
+      select: { hostname: true, instance: { select: { httpPort: true, internalPort: true } } },
     });
 
     const ingress: IngressRoute[] = [];
@@ -81,10 +89,18 @@ export class TunnelService implements OnModuleInit {
       add(d.domain, d.targetPort);
     }
 
+    // Rutas de proyectos desplegados → nginx interno de su instancia (puerto 80).
+    // El DNS de cada hostname lo registra syncIngress vía registerDnsForHostnames.
+    for (const dep of deployments) {
+      const httpPort = dep.instance?.httpPort ?? (dep.instance?.internalPort ? dep.instance.internalPort + 1 : null);
+      add(dep.hostname, httpPort);
+    }
+
     const base = getBaseDomain();
     if (base) {
       for (const inst of instances) {
-        if (!inst.internalPort) continue;
+        // La instancia de deploy es interna: no se expone directamente.
+        if (inst.isSystem || !inst.internalPort) continue;
         const host = `${slugify(inst.name)}.${base}`;
         if (!domains.some((d) => d.domain === host)) {
           add(host, inst.internalPort);

@@ -5,6 +5,7 @@ export interface DeployTarget {
   buildCommand: string | null;
   startCommand: string | null;
   port?: number | null;
+  hostname?: string | null;
 }
 
 export function buildDeployScript(dep: DeployTarget, token?: string): string {
@@ -15,6 +16,7 @@ export function buildDeployScript(dep: DeployTarget, token?: string): string {
   const appName = dirName.replace(/[^a-zA-Z0-9_-]/g, '-');
   const port = dep.port || 3000;
   const rootDir = dep.rootDir && dep.rootDir.trim() ? dep.rootDir : '.';
+  const hostname = dep.hostname && dep.hostname.trim() ? dep.hostname.trim() : null;
 
   return [
     'set -e',
@@ -72,6 +74,39 @@ export function buildDeployScript(dep: DeployTarget, token?: string): string {
           ') || true',
         ].join('\n')
       : 'echo "(sin start)"',
+
+    // ── Enrutado público: nginx dentro del contenedor por Host header ──────────
+    // El túnel manda {hostname} → contenedor:80; nginx aquí lo pasa al puerto
+    // interno del proyecto. Así cada proyecto tiene su propia URL.
+    ...(hostname
+      ? [
+          '( echo "== ROUTE =="',
+          '  mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled',
+          // rm del default para que no capture con listen 80 default_server.
+          '  rm -f /etc/nginx/sites-enabled/default',
+          `  cat > "/etc/nginx/sites-available/${appName}.conf" <<'NGINXCONF'`,
+          'server {',
+          '    listen 80;',
+          `    server_name ${hostname};`,
+          '    location / {',
+          `        proxy_pass http://127.0.0.1:${port};`,
+          '        proxy_http_version 1.1;',
+          '        proxy_set_header Host $host;',
+          '        proxy_set_header Upgrade $http_upgrade;',
+          '        proxy_set_header Connection "upgrade";',
+          '        proxy_set_header X-Real-IP $remote_addr;',
+          '        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;',
+          '        proxy_set_header X-Forwarded-Proto $scheme;',
+          '    }',
+          '}',
+          'NGINXCONF',
+          `  ln -sf "/etc/nginx/sites-available/${appName}.conf" "/etc/nginx/sites-enabled/${appName}.conf"`,
+          // Arranca nginx si no corre; si ya corre, recarga la config.
+          '  nginx -t > /dev/null 2>&1 && { nginx -s reload 2>/dev/null || nginx 2>/dev/null; }',
+          `  echo "URL: https://${hostname}"`,
+          ') || true',
+        ]
+      : []),
 
     'echo "== OK =="',
   ].join('\n');

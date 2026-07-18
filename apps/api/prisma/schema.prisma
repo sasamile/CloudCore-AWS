@@ -195,6 +195,7 @@ model Deployment {
   startCommand String?
   framework    String?
   port         Int?
+  hostname     String?
   status       String   @default("idle")
   lastLog      String?
   instanceId   String

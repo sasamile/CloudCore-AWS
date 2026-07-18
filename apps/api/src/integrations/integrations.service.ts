@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, NotFoundException, Logger } from '@nes
 import { createHmac, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { DockerService } from '../docker/docker.service';
+import { TunnelService } from '../tunnel/tunnel.service';
 import { encryptSecret, decryptSecret } from '../common/crypto.util';
 import { buildDeployScript } from '../deployments/deploy-script.util';
 
@@ -19,6 +20,7 @@ export class IntegrationsService {
   constructor(
     private prisma: PrismaService,
     private docker: DockerService,
+    private tunnel: TunnelService,
   ) {}
 
   private stateSecret() {
@@ -544,6 +546,7 @@ export class IntegrationsService {
       buildCommand: string | null;
       startCommand: string | null;
       port: number | null;
+      hostname: string | null;
       instance: { containerId: string | null };
     },
     userId: string,
@@ -565,6 +568,13 @@ export class IntegrationsService {
           where: { id: dep.id },
           data: { status: success ? 'success' : 'error', lastLog: output.slice(-8000) },
         });
+        if (success && dep.hostname && this.tunnel.isTunnelMode()) {
+          try {
+            await this.tunnel.syncIngress();
+          } catch (e) {
+            this.logger.warn(`No se pudo sincronizar la ruta ${dep.hostname}: ${(e as Error).message}`);
+          }
+        }
       } catch (err) {
         await this.prisma.deployment.update({
           where: { id: dep.id },

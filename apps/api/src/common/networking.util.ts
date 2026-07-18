@@ -6,6 +6,23 @@ export function getBaseDomain(): string | null {
   return process.env.BASE_DOMAIN || null;
 }
 
+/**
+ * Dominio bajo el cual se publican los proyectos desplegados (estilo Vercel).
+ * Ej: DEPLOY_BASE_DOMAIN=apps.zyntek.com.co → landing.apps.zyntek.com.co
+ * Cae a BASE_DOMAIN si no se define uno específico.
+ */
+export function getDeployBaseDomain(): string | null {
+  return process.env.DEPLOY_BASE_DOMAIN || process.env.BASE_DOMAIN || null;
+}
+
+/** Hostname público de un proyecto: {slug}.{deployBase}. Null si no hay dominio. */
+export function buildDeploymentHostname(repoFullName: string): string | null {
+  const base = getDeployBaseDomain();
+  if (!base) return null;
+  const repo = repoFullName.split('/').pop() || repoFullName;
+  return `${slugify(repo)}.${base}`;
+}
+
 export function getRoutingMode(): 'tunnel' | 'port' | 'nginx' {
   const mode = process.env.ROUTING_MODE || 'port';
   if (mode === 'tunnel' || mode === 'nginx') return mode;

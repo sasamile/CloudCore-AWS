@@ -3,7 +3,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DockerService } from '../docker/docker.service';
 import { InstancesService } from '../instances/instances.service';
 import { IntegrationsService } from '../integrations/integrations.service';
+import { TunnelService } from '../tunnel/tunnel.service';
 import { buildDeployScript } from './deploy-script.util';
+import { buildDeploymentHostname } from '../common/networking.util';
 
 export interface CreateDeploymentInput {
   repoFullName: string; // "owner/repo"
@@ -28,6 +30,7 @@ export class DeploymentsService {
     private readonly docker: DockerService,
     private readonly instances: InstancesService,
     private readonly integrations: IntegrationsService,
+    private readonly tunnel: TunnelService,
   ) {}
 
   async list(userId: string) {
@@ -78,6 +81,7 @@ export class DeploymentsService {
     }
 
     const port = await this.nextAppPort(userId);
+    const hostname = buildDeploymentHostname(input.repoFullName);
 
     return this.prisma.deployment.create({
       data: {
@@ -90,6 +94,7 @@ export class DeploymentsService {
         buildCommand: buildCommand || null,
         startCommand: startCommand || null,
         port,
+        hostname,
         status: 'idle',
       },
     });
@@ -110,6 +115,15 @@ export class DeploymentsService {
     const fresh = await this.prisma.instance.findUnique({ where: { id: dep.instanceId } });
     if (!fresh?.containerId || fresh.status !== 'running') {
       throw new BadRequestException('La instancia de despliegue no está corriendo');
+    }
+
+    // Backfill de hostname para proyectos creados antes de esta feature.
+    if (!dep.hostname) {
+      const hostname = buildDeploymentHostname(dep.repoFullName);
+      if (hostname) {
+        await this.prisma.deployment.update({ where: { id: dep.id }, data: { hostname } });
+        dep.hostname = hostname;
+      }
     }
 
     await this.prisma.deployment.update({
@@ -172,6 +186,7 @@ export class DeploymentsService {
       buildCommand: string | null;
       startCommand: string | null;
       port: number | null;
+      hostname: string | null;
     },
   ) {
     // Token del usuario para clonar repos privados.
@@ -194,5 +209,15 @@ export class DeploymentsService {
       },
     });
     this.logger.log(`Deploy ${deploymentId}: ${success ? 'success' : 'error'}`);
+
+    // Publica la ruta pública: registra DNS + ingress del hostname en el túnel.
+    if (success && dep.hostname && this.tunnel.isTunnelMode()) {
+      try {
+        await this.tunnel.syncIngress();
+        this.logger.log(`Ruta pública sincronizada: https://${dep.hostname}`);
+      } catch (e) {
+        this.logger.warn(`No se pudo sincronizar la ruta ${dep.hostname}: ${(e as Error).message}`);
+      }
+    }
   }
 }

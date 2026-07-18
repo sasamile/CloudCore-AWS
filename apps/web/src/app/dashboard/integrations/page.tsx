@@ -32,6 +32,7 @@ import {
   ChevronRight,
   Sparkles,
   Trash2,
+  ExternalLink,
 } from "lucide-react"
 import { StatusBadge } from "@/components/deployments/status-badge"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -59,6 +60,7 @@ interface Deployment {
   rootDir: string
   framework: string | null
   port: number | null
+  hostname: string | null
   buildCommand: string | null
   startCommand: string | null
   status: string
@@ -108,6 +110,17 @@ function ProjectCard({
             )}
             <span className="hidden sm:inline text-muted-foreground/50">{dep.repoFullName}</span>
           </div>
+          {dep.hostname && dep.status === "success" && (
+            <a
+              href={`https://${dep.hostname}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 text-[11px] text-emerald-500 hover:text-emerald-400 hover:underline"
+            >
+              {dep.hostname} <ExternalLink className="size-2.5" />
+            </a>
+          )}
           <p className="text-[11px] text-muted-foreground/60">Actualizado {timeAgo}</p>
         </button>
         <div className="flex shrink-0 items-center gap-0.5">
