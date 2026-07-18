@@ -57,11 +57,20 @@ export function buildDeployScript(dep: DeployTarget, token?: string): string {
 
     dep.buildCommand ? `echo "== BUILD =="; ${dep.buildCommand}` : 'echo "(sin build)"',
 
-    // Arranca la app en background bajo un nombre único; mata la instancia previa.
-    // Fuente NVM en setsid para que el proceso hijo use el Node correcto.
+    // ── Arrancar app en background ─────────────────────────────────────────────
+    // Usamos nohup + disown (más portables que setsid) para que el proceso
+    // sobreviva cuando el exec de Docker se cierra.
+    // El bloque completo está en una subshell con || true para que cualquier
+    // fallo al arrancar NO bloquee el echo "== OK ==" final.
     dep.startCommand
-      ? `echo "== START =="; pkill -f "${appName}-run" || true; ` +
-        `setsid bash -c '. "$NVM_DIR/nvm.sh" 2>/dev/null || true; nvm use "$_NVER" > /dev/null 2>&1 || true; exec -a ${appName}-run env PORT=${port} HOST=0.0.0.0 ${dep.startCommand}' > "/var/log/${appName}.log" 2>&1 < /dev/null &`
+      ? [
+          'echo "== START =="',
+          `( pkill -f "${appName}-run" > /dev/null 2>&1 || true`,
+          `  nohup bash -c '. "$NVM_DIR/nvm.sh" 2>/dev/null || true; nvm use "$_NVER" > /dev/null 2>&1 || true; ${dep.startCommand}' \\`,
+          `    > "/var/log/${appName}.log" 2>&1 &`,
+          `  disown $!`,
+          ') || true',
+        ].join('\n')
       : 'echo "(sin start)"',
 
     'echo "== OK =="',
