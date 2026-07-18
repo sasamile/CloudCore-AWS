@@ -3,6 +3,9 @@
 import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { Header } from "@/components/layout/header"
+import { PageHeader } from "@/components/layout/page-header"
+import { PageShell } from "@/components/layout/page-shell"
+import { EmptyState } from "@/components/layout/empty-state"
 import { api } from "@/lib/api"
 import { formatApiError } from "@/lib/format-api-error"
 import { toast } from "@/hooks/use-toast"
@@ -159,19 +162,17 @@ function IntegrationsContent() {
         title="Deploy"
         breadcrumbs={[{ label: "Compute", href: "/dashboard/instances" }]}
       />
-      <div className="w-full px-4 py-6 sm:px-6 space-y-6">
+      <PageShell maxWidth="4xl">
         {loading ? (
           <CardsSkeleton count={3} />
         ) : (
           <>
-        <div>
-          <h2 className="text-xl font-semibold">Desplegar desde GitHub</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Conecta tu cuenta, elige un repositorio y despliega en una instancia — como Vercel.
-          </p>
-        </div>
+        <PageHeader
+          title="Desplegar desde GitHub"
+          description="Conecta tu cuenta, elige un repositorio y despliega en una instancia — como Vercel."
+        />
 
-        <Card>
+        <Card className="rounded-2xl border-border shadow-none">
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
               <Github className="w-4 h-4" /> GitHub
@@ -195,15 +196,15 @@ function IntegrationsContent() {
             <div className="flex gap-2">
               {github ? (
                 <>
-                  <Button variant="outline" size="sm" onClick={load}>
+                  <Button variant="outline" className="h-9" onClick={load}>
                     <RefreshCw className="w-3.5 h-3.5" />
                   </Button>
-                  <Button variant="outline" size="sm" onClick={disconnectGithub}>
+                  <Button variant="outline" className="h-9" onClick={disconnectGithub}>
                     <Unplug className="w-3.5 h-3.5" /> Desconectar
                   </Button>
                 </>
               ) : (
-                <Button size="sm" onClick={connectGithub} disabled={connecting}>
+                <Button className="h-9" onClick={connectGithub} disabled={connecting}>
                   {connecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Github className="w-3.5 h-3.5" />}
                   Conectar GitHub
                 </Button>
@@ -213,7 +214,7 @@ function IntegrationsContent() {
         </Card>
 
         {github && (
-          <Card>
+          <Card className="rounded-2xl border-border shadow-none">
             <CardHeader>
               <CardTitle className="text-sm flex items-center gap-2">
                 <Rocket className="w-4 h-4" /> Nuevo despliegue
@@ -269,7 +270,7 @@ function IntegrationsContent() {
                 <label className="text-sm font-medium">Start command</label>
                 <Input value={startCommand} onChange={(e) => setStartCommand(e.target.value)} />
               </div>
-              <Button onClick={handleDeploy} disabled={deploying || !selectedRepo || !selectedInstance}>
+              <Button className="h-9" onClick={handleDeploy} disabled={deploying || !selectedRepo || !selectedInstance}>
                 {deploying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Rocket className="w-3.5 h-3.5" />}
                 Desplegar
               </Button>
@@ -277,21 +278,24 @@ function IntegrationsContent() {
           </Card>
         )}
 
-        <Card>
+        <Card className="rounded-2xl border-border shadow-none">
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
               <GitBranch className="w-4 h-4" /> Historial de despliegues
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {loading ? (
-              <p className="text-sm text-muted-foreground">Cargando...</p>
-            ) : deployments.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Aún no hay despliegues.</p>
+            {deployments.length === 0 ? (
+              <EmptyState
+                icon={Rocket}
+                title="Aún no hay despliegues"
+                description="Conecta GitHub y lanza tu primer despliegue desde arriba."
+                className="border-0 bg-transparent py-8"
+              />
             ) : (
               <div className="space-y-2">
                 {deployments.map((d) => (
-                  <div key={d.id} className="rounded-lg border p-3 text-sm">
+                  <div key={d.id} className="rounded-xl border border-border p-3 text-sm">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-mono text-xs">{d.repoFullName}</span>
                       <Badge
@@ -313,7 +317,7 @@ function IntegrationsContent() {
         </Card>
           </>
         )}
-      </div>
+      </PageShell>
     </>
   )
 }

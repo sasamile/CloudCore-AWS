@@ -13,6 +13,7 @@ import type { Request, Response } from 'express';
 import { OidcService, type AuthorizeParams } from './oidc.service';
 import { OAuthClientService } from '../clients/oauth-client.service';
 import { AppUserService } from '../app-users/app-user.service';
+import { MfaService } from '../mfa/mfa.service';
 import { ZYNAUTH } from '../zynauth.config';
 import { renderLoginPage } from './login-page';
 import { renderMfaPage } from './mfa-page';
@@ -50,6 +51,7 @@ export class OidcController {
     private readonly oidc: OidcService,
     private readonly clients: OAuthClientService,
     private readonly appUsers: AppUserService,
+    private readonly mfa: MfaService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -143,11 +145,18 @@ export class OidcController {
       return this.completeLogin(res, appUser.id, true, params, body);
     }
 
-    // ZynCloud user MFA — no deberia llegar aqui porque el flujo OIDC usa AppUsers,
-    // pero lo mantenemos como fallback seguro.
+    // ZynCloud user MFA — fallback: exigir codigo antes de completar.
     const user = await this.prisma.user.findUnique({ where: { id: ticket.id } });
     if (!user) {
       return res.status(200).type('html').send(renderLoginPage({ params: body, error: 'Usuario no encontrado' }));
+    }
+    const ok = await this.mfa.verifyForUser(user, body.code ?? '');
+    if (!ok) {
+      const newTicket = await this.oidc.createMfaTicket(user.id, false);
+      return res
+        .status(200)
+        .type('html')
+        .send(renderMfaPage({ params: body, ticket: newTicket, error: 'Codigo invalido' }));
     }
     return this.completeLogin(res, user.id, false, params, body);
   }

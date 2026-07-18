@@ -22,7 +22,6 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
 import { Logo } from "@/components/brand/logo"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
@@ -39,9 +38,9 @@ export const navSections: {
   {
     label: "Identity",
     items: [
-      { href: "/dashboard/security", label: "Security (MFA)", icon: ShieldCheck },
+      { href: "/dashboard/security", label: "Security", icon: ShieldCheck },
       { href: "/dashboard/access-keys", label: "Access Keys", icon: KeyRound },
-      { href: "/dashboard/apps", label: "Apps (ZynAuth)", icon: Boxes },
+      { href: "/dashboard/apps", label: "Apps", icon: Boxes },
     ],
   },
   {
@@ -91,11 +90,10 @@ function SidebarNavContent({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <>
-      <nav className="flex-1 overflow-y-auto p-3">
-        {navSections.map((section, index) => (
-          <div key={section.label}>
-            {index > 0 && <Separator className="my-3 bg-sidebar-border" />}
-            <div className="px-2 mb-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
+        {navSections.map((section) => (
+          <div key={section.label} className="mb-5 last:mb-0">
+            <div className="px-2.5 mb-1.5 text-[11px] font-medium text-muted-foreground/80 tracking-wide">
               {section.label}
             </div>
             <div className="space-y-0.5">
@@ -107,19 +105,14 @@ function SidebarNavContent({ onNavigate }: { onNavigate?: () => void }) {
                     href={item.href}
                     onClick={onNavigate}
                     className={cn(
-                      "flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-all",
+                      "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors duration-150",
                       active
-                        ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium border-l-2 border-foreground"
-                        : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground border-l-2 border-transparent"
+                        ? "bg-sidebar-accent text-foreground font-medium"
+                        : "text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground",
                     )}
                   >
-                    <item.icon
-                      className={cn(
-                        "w-4 h-4",
-                        active ? "text-foreground" : "text-muted-foreground"
-                      )}
-                    />
-                    {item.label}
+                    <item.icon className={cn("h-4 w-4 shrink-0", active ? "text-foreground" : "")} />
+                    <span className="truncate">{item.label}</span>
                   </Link>
                 )
               })}
@@ -132,10 +125,10 @@ function SidebarNavContent({ onNavigate }: { onNavigate?: () => void }) {
         <Button
           variant="ghost"
           onClick={handleLogout}
-          className="w-full justify-start gap-2.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+          className="w-full h-9 justify-start gap-2.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
         >
-          <LogOut className="w-4 h-4" />
-          Sign out
+          <LogOut className="h-4 w-4" />
+          Cerrar sesión
         </Button>
       </div>
     </>
@@ -147,17 +140,20 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="hidden lg:flex w-[250px] h-screen bg-sidebar border-r border-sidebar-border flex-col fixed left-0 top-0 z-40">
+      <aside className="hidden lg:flex w-60 h-screen bg-sidebar border-r border-sidebar-border flex-col fixed left-0 top-0 z-40">
         <div className="h-14 flex items-center px-4 border-b border-sidebar-border shrink-0">
-          <Logo size={28} showWordmark />
+          <Logo size={26} showWordmark />
         </div>
         <SidebarNavContent />
       </aside>
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="left" className="w-[280px] sm:max-w-[280px] p-0 bg-sidebar border-sidebar-border">
+        <SheetContent
+          side="left"
+          className="w-[280px] sm:max-w-[280px] p-0 bg-sidebar border-sidebar-border"
+        >
           <div className="h-14 flex items-center px-4 border-b border-sidebar-border">
-            <Logo size={28} showWordmark />
+            <Logo size={26} showWordmark />
           </div>
           <div className="flex flex-col h-[calc(100%-3.5rem)]">
             <SidebarNavContent onNavigate={() => setOpen(false)} />

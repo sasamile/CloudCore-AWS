@@ -3,16 +3,17 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Header } from "@/components/layout/header"
+import { PageHeader } from "@/components/layout/page-header"
+import { PageShell } from "@/components/layout/page-shell"
 import { api } from "@/lib/api"
 import { downloadPem } from "@/lib/instance"
 import { toast } from "@/hooks/use-toast"
 import { formatApiError } from "@/lib/format-api-error"
-import { ArrowLeft, Key, Download, Plus, Server } from "lucide-react"
+import { ArrowLeft, Key, Download, Plus } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 
@@ -96,32 +97,25 @@ export default function NewInstancePage() {
           { label: "Instances", href: "/dashboard/instances" },
         ]}
       />
-      <div className="w-full px-4 py-6 sm:px-6 space-y-6">
-        <Button variant="ghost" size="sm" asChild className="-ml-2 text-muted-foreground">
+      <PageShell maxWidth="4xl">
+        <Button variant="ghost" asChild className="-ml-2 h-9 text-muted-foreground">
           <Link href="/dashboard/instances">
             <ArrowLeft className="w-3.5 h-3.5" /> Back to instances
           </Link>
         </Button>
 
-        <div className="flex items-start gap-4">
-          <div className="hidden sm:flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border bg-muted">
-            <Server className="w-5 h-5 text-muted-foreground" />
-          </div>
-          <div>
-            <h2 className="text-xl font-semibold tracking-tight">New compute instance</h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Ubuntu 22.04 with Node.js 20. Pick a size and optional SSH access.
-            </p>
-          </div>
-        </div>
+        <PageHeader
+          title="New compute instance"
+          description="Ubuntu 22.04 with Node.js 20. Pick a size and optional SSH access."
+        />
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-base">General</CardTitle>
-              <CardDescription>Name your instance for easy identification.</CardDescription>
-            </CardHeader>
-            <CardContent>
+          <div className="rounded-2xl border border-border">
+            <div className="px-6 pt-6 pb-4">
+              <h3 className="text-base font-semibold">General</h3>
+              <p className="text-sm text-muted-foreground mt-1">Name your instance for easy identification.</p>
+            </div>
+            <div className="px-6 pb-6">
               <div className="space-y-2 max-w-md">
                 <Label htmlFor="name">Instance name</Label>
                 <Input
@@ -132,16 +126,15 @@ export default function NewInstancePage() {
                   required
                 />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-base">Instance type</CardTitle>
-              <CardDescription>CPU and memory for your workload.</CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="divide-y">
+          <div className="rounded-2xl border border-border overflow-hidden">
+            <div className="px-6 pt-6 pb-4">
+              <h3 className="text-base font-semibold">Instance type</h3>
+              <p className="text-sm text-muted-foreground mt-1">CPU and memory for your workload.</p>
+            </div>
+            <div className="divide-y border-t border-border">
                 {PRESETS.map((p) => (
                   <label
                     key={p.name}
@@ -168,18 +161,17 @@ export default function NewInstancePage() {
                     </div>
                   </label>
                 ))}
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-base flex items-center gap-2">
+          <div className="rounded-2xl border border-border">
+            <div className="px-6 pt-6 pb-4">
+              <h3 className="text-base font-semibold flex items-center gap-2">
                 <Key className="w-4 h-4" /> Key pair (SSH)
-              </CardTitle>
-              <CardDescription>How you will connect to the instance.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+              </h3>
+              <p className="text-sm text-muted-foreground mt-1">How you will connect to the instance.</p>
+            </div>
+            <div className="px-6 pb-6 space-y-4">
               <div className="space-y-2">
                 {([
                   { mode: "create" as KeyMode, label: "Create new key pair", desc: "Generate and download .pem automatically" },
@@ -188,7 +180,7 @@ export default function NewInstancePage() {
                 ]).map((opt) => (
                   <label
                     key={opt.mode}
-                    className={`flex items-start gap-3 rounded-lg border px-4 py-3 cursor-pointer transition-colors ${
+                    className={`flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer transition-colors ${
                       keyMode === opt.mode ? "border-foreground/30 bg-muted/50" : "hover:bg-muted/30"
                     }`}
                   >
@@ -248,11 +240,11 @@ export default function NewInstancePage() {
                   )}
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <Card className="bg-muted/30">
-            <CardContent className="py-4 flex flex-wrap items-center gap-2 text-sm">
+          <div className="rounded-2xl border border-border bg-muted/30">
+            <div className="px-6 py-4 flex flex-wrap items-center gap-2 text-sm">
               <span className="font-medium">Summary</span>
               <Separator orientation="vertical" className="h-4 hidden sm:block" />
               <Badge variant="secondary">Ubuntu 22.04</Badge>
@@ -261,25 +253,25 @@ export default function NewInstancePage() {
               <Badge variant="outline">{memoryLimit} MB</Badge>
               <Badge variant="outline">{cpuLimit} vCPU</Badge>
               {keyMode !== "none" && <Badge variant="outline">SSH</Badge>}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {error && (
-            <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <div className="rounded-2xl border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
               {error}
             </div>
           )}
 
           <div className="flex items-center justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => router.back()}>
+            <Button type="button" variant="outline" className="h-9" onClick={() => router.back()}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" className="h-9" disabled={loading}>
               {loading ? "Launching..." : "Launch instance"}
             </Button>
           </div>
         </form>
-      </div>
+      </PageShell>
     </>
   )
 }

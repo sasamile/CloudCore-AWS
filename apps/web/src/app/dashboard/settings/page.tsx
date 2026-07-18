@@ -1,16 +1,23 @@
 "use client"
 
 import { Header } from "@/components/layout/header"
+import { PageHeader } from "@/components/layout/page-header"
+import { PageShell } from "@/components/layout/page-shell"
 import { Server, Info, Shield, Database } from "lucide-react"
 
 export default function SettingsPage() {
   return (
     <>
       <Header title="Settings" breadcrumbs={[{ label: "System" }]} />
-      <div className="w-full px-4 py-6 sm:px-6 space-y-4">
-        <div className="rounded-lg border">
-          <div className="flex items-center gap-2 px-4 py-3 border-b">
-            <Info className="w-4 h-4" />
+      <PageShell maxWidth="4xl">
+        <PageHeader
+          title="Settings"
+          description="Información del sistema, imagen base y configuración de despliegue"
+        />
+
+        <div className="rounded-2xl border border-border">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+            <Info className="w-4 h-4 text-muted-foreground" />
             <h2 className="text-sm font-medium">System information</h2>
           </div>
           <div className="p-4 grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-8 text-sm">
@@ -30,15 +37,15 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="rounded-lg border">
-          <div className="flex items-center gap-2 px-4 py-3 border-b">
-            <Server className="w-4 h-4" />
+        <div className="rounded-2xl border border-border">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+            <Server className="w-4 h-4 text-muted-foreground" />
             <h2 className="text-sm font-medium">Base instance image</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b bg-muted/50">
+                <tr className="border-b border-border bg-muted/50">
                   <th className="h-10 px-4 text-left font-medium text-muted-foreground">Package</th>
                   <th className="h-10 px-4 text-left font-medium text-muted-foreground">Version</th>
                 </tr>
@@ -50,7 +57,7 @@ export default function SettingsPage() {
                   ["Nginx", "Latest"],
                   ["Tools", "git, vim, curl, htop, wget"],
                 ].map(([pkg, ver]) => (
-                  <tr key={pkg} className="border-b last:border-0">
+                  <tr key={pkg} className="border-b border-border last:border-0">
                     <td className="p-4 text-xs">{pkg}</td>
                     <td className="p-4 text-xs text-muted-foreground">{ver}</td>
                   </tr>
@@ -60,28 +67,30 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="rounded-lg border">
-          <div className="flex items-center gap-2 px-4 py-3 border-b">
-            <Shield className="w-4 h-4" />
+        <div className="rounded-2xl border border-border">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+            <Shield className="w-4 h-4 text-muted-foreground" />
             <h2 className="text-sm font-medium">Security</h2>
           </div>
-          <div className="p-4 flex items-center justify-between">
+          <div className="p-4 flex items-center justify-between gap-4">
             <div>
               <p className="text-sm font-medium">Authentication</p>
               <p className="text-xs text-muted-foreground">JWT-based with bcrypt password hashing</p>
             </div>
-            <span className="inline-flex items-center text-xs font-medium text-green-600">Active</span>
+            <span className="inline-flex items-center text-xs font-medium text-emerald-600 dark:text-emerald-400">
+              Active
+            </span>
           </div>
         </div>
 
-        <div className="rounded-lg border">
-          <div className="flex items-center gap-2 px-4 py-3 border-b">
-            <Database className="w-4 h-4" />
+        <div className="rounded-2xl border border-border">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+            <Database className="w-4 h-4 text-muted-foreground" />
             <h2 className="text-sm font-medium">Hosting / Nginx</h2>
           </div>
           <div className="p-4 text-xs text-muted-foreground space-y-3">
             <p>To deploy ZynCloud behind Nginx, configure reverse proxies for both services:</p>
-            <pre className="bg-muted/50 border rounded-md p-3 font-mono text-xs overflow-x-auto">{`# Frontend (Next.js) — port 3000
+            <pre className="bg-muted/30 border border-border rounded-xl p-3 font-mono text-xs overflow-x-auto">{`# Frontend (Next.js) — port 3000
 server {
     server_name cloud.yourdomain.com;
     location / {
@@ -105,7 +114,7 @@ server {
             <p>Instance apps use dynamically assigned ports (10001, 10002, etc.) — proxy each domain to its instance&apos;s host port.</p>
           </div>
         </div>
-      </div>
+      </PageShell>
     </>
   )
 }

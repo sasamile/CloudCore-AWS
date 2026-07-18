@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react"
 import { Header } from "@/components/layout/header"
+import { PageHeader } from "@/components/layout/page-header"
+import { PageShell } from "@/components/layout/page-shell"
+import { EmptyState } from "@/components/layout/empty-state"
 import { api } from "@/lib/api"
 import { toast } from "@/hooks/use-toast"
 import { formatApiError } from "@/lib/format-api-error"
@@ -9,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Dialog,
   DialogContent,
@@ -18,7 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import Link from "next/link"
-import { Boxes, Plus, Loader2, Copy, Check, AlertTriangle, Pencil, Trash2, Users } from "lucide-react"
+import { Boxes, Plus, Copy, Check, AlertTriangle, Pencil, Trash2, Users } from "lucide-react"
 
 interface OAuthClient {
   id: string
@@ -43,15 +47,33 @@ function CopyRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <label className="text-xs text-muted-foreground">{label}</label>
-      <div className="flex items-center gap-2 mt-1">
-        <code className="flex-1 rounded bg-muted px-3 py-2 font-mono text-xs break-all">{value}</code>
+      <div className="mt-1 flex items-center gap-2">
+        <code className="flex-1 rounded-lg border border-border bg-muted/50 px-3 py-2 font-mono text-xs break-all">{value}</code>
         <button
+          type="button"
           onClick={() => { navigator.clipboard.writeText(value); setC(true); setTimeout(() => setC(false), 1200) }}
-          className="inline-flex items-center justify-center rounded border w-7 h-7 hover:bg-accent shrink-0"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-background transition-colors hover:bg-accent"
         >
-          {c ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+          {c ? <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> : <Copy className="h-4 w-4" />}
         </button>
       </div>
+    </div>
+  )
+}
+
+function AppsListSkeleton() {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="rounded-2xl border border-border bg-card/50 p-5 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-9 w-24" />
+          </div>
+          <Skeleton className="h-3 w-full max-w-md" />
+          <Skeleton className="h-3 w-full max-w-sm" />
+        </div>
+      ))}
     </div>
   )
 }
@@ -161,60 +183,81 @@ export default function AppsPage() {
   return (
     <>
       <Header title="Apps (ZynAuth)" breadcrumbs={[{ label: "Identity" }, { label: "Apps" }]} />
-      <div className="w-full max-w-4xl px-4 py-6 sm:px-6 space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold">Aplicaciones registradas</h2>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Apps que autentican usuarios vía ZynAuth (equivale a los "App Clients" de Cognito).
-            </p>
-          </div>
-          <Button size="sm" onClick={() => { resetForm(); setShowCreate(true) }}><Plus className="w-3.5 h-3.5" /> Registrar app</Button>
-        </div>
+      <PageShell maxWidth="4xl">
+        <PageHeader
+          title="Aplicaciones registradas"
+          description='Apps que autentican usuarios vía ZynAuth (equivale a los "App Clients" de Cognito).'
+          actions={
+            <Button className="h-9" onClick={() => { resetForm(); setShowCreate(true) }}>
+              <Plus className="h-4 w-4" />
+              Registrar app
+            </Button>
+          }
+        />
 
         {loading ? (
-          <div className="rounded-lg border p-8 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+          <AppsListSkeleton />
         ) : clients.length === 0 ? (
-          <div className="rounded-lg border p-12 text-center">
-            <Boxes className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground mb-4">No hay apps registradas.</p>
-            <Button size="sm" onClick={() => { resetForm(); setShowCreate(true) }}><Plus className="w-3.5 h-3.5" /> Registrar la primera</Button>
-          </div>
+          <EmptyState
+            icon={Boxes}
+            title="No hay apps registradas"
+            action={
+              <Button className="h-9" onClick={() => { resetForm(); setShowCreate(true) }}>
+                <Plus className="h-4 w-4" />
+                Registrar la primera
+              </Button>
+            }
+          />
         ) : (
           <div className="space-y-3">
             {clients.map((c) => (
-              <div key={c.id} className="rounded-lg border p-4">
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Boxes className="w-4 h-4 text-muted-foreground shrink-0" />
-                    <span className="font-medium truncate">{c.name}</span>
-                    <Badge variant={c.isPublic ? "secondary" : "default"}>{c.isPublic ? "público (PKCE)" : "confidencial"}</Badge>
+              <div key={c.id} className="rounded-2xl border border-border bg-card/50 p-5">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-background">
+                      <Boxes className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <span className="truncate font-medium">{c.name}</span>
+                    <Badge variant={c.isPublic ? "secondary" : "default"}>
+                      {c.isPublic ? "público (PKCE)" : "confidencial"}
+                    </Badge>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <code className="font-mono text-xs text-muted-foreground hidden sm:inline">{c.clientId}</code>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Usuarios" asChild>
-                      <Link href={`/dashboard/apps/${c.clientId}/users`}><Users className="w-3.5 h-3.5" /></Link>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <code className="hidden font-mono text-xs text-muted-foreground sm:inline">{c.clientId}</code>
+                    <Button variant="ghost" size="icon" className="h-9 w-9" title="Usuarios" asChild>
+                      <Link href={`/dashboard/apps/${c.clientId}/users`}><Users className="h-4 w-4" /></Link>
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(c)}>
-                      <Pencil className="w-3.5 h-3.5" />
+                    <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => openEdit(c)}>
+                      <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteTarget(c)}>
-                      <Trash2 className="w-3.5 h-3.5" />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9 hover:bg-destructive/10 hover:text-destructive"
+                      onClick={() => setDeleteTarget(c)}
+                    >
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
-                <div className="text-xs text-muted-foreground space-y-1">
-                  <div className="sm:hidden"><span className="text-foreground/70">Client ID:</span> <code className="font-mono">{c.clientId}</code></div>
-                  <div><span className="text-foreground/70">Redirect URIs:</span> {c.redirectUris.join(", ")}</div>
-                  <div><span className="text-foreground/70">Scopes:</span> {c.allowedScopes.join(" ")}</div>
+                <div className="space-y-1 text-xs text-muted-foreground">
+                  <div className="sm:hidden">
+                    <span className="text-foreground/70">Client ID:</span>{" "}
+                    <code className="font-mono">{c.clientId}</code>
+                  </div>
+                  <div>
+                    <span className="text-foreground/70">Redirect URIs:</span> {c.redirectUris.join(", ")}
+                  </div>
+                  <div>
+                    <span className="text-foreground/70">Scopes:</span> {c.allowedScopes.join(" ")}
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         )}
-      </div>
+      </PageShell>
 
-      {/* Crear */}
       <Dialog open={showCreate} onOpenChange={(o) => { if (!o) { setShowCreate(false); resetForm() } }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -224,7 +267,7 @@ export default function AppsPage() {
           <div className="space-y-3">
             <div>
               <label className="text-sm font-medium">Nombre</label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="orbidev" className="mt-1" autoFocus />
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="orbidev" className="mt-1 h-9" autoFocus />
             </div>
             <div>
               <label className="text-sm font-medium">Redirect URIs</label>
@@ -232,9 +275,9 @@ export default function AppsPage() {
                 value={redirects}
                 onChange={(e) => setRedirects(e.target.value)}
                 placeholder={"https://mi-app.com/api/auth/callback\nhttp://localhost:3000/api/auth/callback"}
-                className="mt-1 flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[72px] font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="mt-1 flex min-h-[72px] w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
-              <p className="text-xs text-muted-foreground mt-1">Una por línea (o separadas por coma).</p>
+              <p className="mt-1 text-xs text-muted-foreground">Una por línea (o separadas por coma).</p>
             </div>
             <div>
               <label className="text-sm font-medium">Post-logout URIs (opcional)</label>
@@ -242,7 +285,7 @@ export default function AppsPage() {
                 value={logouts}
                 onChange={(e) => setLogouts(e.target.value)}
                 placeholder="https://mi-app.com"
-                className="mt-1 flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[48px] font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="mt-1 flex min-h-[48px] w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
             </div>
             <label className="flex items-center gap-2 text-sm">
@@ -251,13 +294,12 @@ export default function AppsPage() {
             </label>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => { setShowCreate(false); resetForm() }}>Cancelar</Button>
-            <Button onClick={create} disabled={busy}>{busy ? "..." : "Registrar"}</Button>
+            <Button variant="outline" className="h-9" onClick={() => { setShowCreate(false); resetForm() }}>Cancelar</Button>
+            <Button className="h-9" onClick={create} disabled={busy}>{busy ? "..." : "Registrar"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Editar */}
       <Dialog open={!!editTarget} onOpenChange={(o) => { if (!o) { setEditTarget(null); resetForm() } }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -269,14 +311,14 @@ export default function AppsPage() {
           <div className="space-y-3">
             <div>
               <label className="text-sm font-medium">Nombre</label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} className="mt-1" autoFocus />
+              <Input value={name} onChange={(e) => setName(e.target.value)} className="mt-1 h-9" autoFocus />
             </div>
             <div>
               <label className="text-sm font-medium">Redirect URIs</label>
               <textarea
                 value={redirects}
                 onChange={(e) => setRedirects(e.target.value)}
-                className="mt-1 flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[72px] font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="mt-1 flex min-h-[72px] w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
             </div>
             <div>
@@ -284,29 +326,29 @@ export default function AppsPage() {
               <textarea
                 value={logouts}
                 onChange={(e) => setLogouts(e.target.value)}
-                className="mt-1 flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[48px] font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="mt-1 flex min-h-[48px] w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
             </div>
             <div>
               <label className="text-sm font-medium">Scopes</label>
-              <Input value={scopes} onChange={(e) => setScopes(e.target.value)} className="mt-1 font-mono text-sm" placeholder="openid profile email offline_access" />
+              <Input value={scopes} onChange={(e) => setScopes(e.target.value)} className="mt-1 h-9 font-mono text-sm" placeholder="openid profile email offline_access" />
             </div>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => { setEditTarget(null); resetForm() }}>Cancelar</Button>
-            <Button onClick={saveEdit} disabled={busy}>{busy ? "..." : "Guardar"}</Button>
+            <Button variant="outline" className="h-9" onClick={() => { setEditTarget(null); resetForm() }}>Cancelar</Button>
+            <Button className="h-9" onClick={saveEdit} disabled={busy}>{busy ? "..." : "Guardar"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Credenciales una vez */}
       <Dialog open={!!created} onOpenChange={(o) => !o && setCreated(null)}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>App registrada: {created?.name}</DialogTitle>
             {created?.clientSecret && (
-              <DialogDescription className="flex items-center gap-1.5 text-amber-500">
-                <AlertTriangle className="w-4 h-4" /> Copia el client secret ahora. No se volverá a mostrar.
+              <DialogDescription className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                Copia el client secret ahora. No se volverá a mostrar.
               </DialogDescription>
             )}
           </DialogHeader>
@@ -319,7 +361,7 @@ export default function AppsPage() {
             )}
           </div>
           <DialogFooter>
-            <Button onClick={() => setCreated(null)}>Listo</Button>
+            <Button className="h-9" onClick={() => setCreated(null)}>Listo</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

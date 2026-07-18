@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react"
 import { Header } from "@/components/layout/header"
+import { PageHeader } from "@/components/layout/page-header"
+import { PageShell } from "@/components/layout/page-shell"
+import { EmptyState } from "@/components/layout/empty-state"
 import { api } from "@/lib/api"
 import { toast } from "@/hooks/use-toast"
 import { formatApiError } from "@/lib/format-api-error"
@@ -86,27 +89,34 @@ export default function DatabasesPage() {
   return (
     <>
       <Header title="Databases" breadcrumbs={[{ label: "Data" }, { label: "Databases" }]} />
-      <div className="w-full max-w-4xl px-4 py-6 sm:px-6 space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold">Bases de datos gestionadas</h2>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Postgres bajo demanda (DBaaS). Cada una trae su propio rol y credenciales.
-            </p>
-          </div>
-          <Button size="sm" onClick={() => setShowCreate(true)}><Plus className="w-3.5 h-3.5" /> Nueva base de datos</Button>
-        </div>
+      <PageShell maxWidth="4xl">
+        <PageHeader
+          title="Bases de datos gestionadas"
+          description="Postgres bajo demanda (DBaaS). Cada una trae su propio rol y credenciales."
+          actions={
+            <Button onClick={() => setShowCreate(true)}>
+              <Plus /> Nueva base de datos
+            </Button>
+          }
+        />
 
         {loading ? (
-          <div className="rounded-lg border p-8 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
-        ) : dbs.length === 0 ? (
-          <div className="rounded-lg border p-12 text-center">
-            <Cylinder className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground mb-4">No tienes bases de datos.</p>
-            <Button size="sm" onClick={() => setShowCreate(true)}><Plus className="w-3.5 h-3.5" /> Crear la primera</Button>
+          <div className="rounded-2xl border border-border p-8 flex justify-center">
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
           </div>
+        ) : dbs.length === 0 ? (
+          <EmptyState
+            icon={Cylinder}
+            title="No tienes bases de datos"
+            description="Crea una base Postgres con su rol dedicado"
+            action={
+              <Button onClick={() => setShowCreate(true)}>
+                <Plus /> Crear la primera
+              </Button>
+            }
+          />
         ) : (
-          <div className="rounded-lg border overflow-x-auto">
+          <div className="rounded-2xl border border-border overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
@@ -140,7 +150,7 @@ export default function DatabasesPage() {
             </table>
           </div>
         )}
-      </div>
+      </PageShell>
 
       {/* Crear */}
       <Dialog open={showCreate} onOpenChange={(o) => { if (!o) { setShowCreate(false); setName("") } }}>

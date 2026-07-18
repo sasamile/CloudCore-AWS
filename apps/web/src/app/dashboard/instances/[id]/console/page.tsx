@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Header } from "@/components/layout/header"
+import { PageHeader } from "@/components/layout/page-header"
+import { PageShell } from "@/components/layout/page-shell"
 import { api } from "@/lib/api"
 import { WebTerminal, type WebTerminalHandle } from "@/components/terminal/web-terminal"
 import { QuickSetup } from "@/components/terminal/quick-setup"
@@ -38,39 +40,42 @@ export default function ConsolePage() {
           { label: instanceName || "...", href: `/dashboard/instances/${params.id}` },
         ]}
       />
-      <div className="px-3 py-4 sm:px-4 h-[calc(100vh-3.5rem)] flex flex-col gap-2">
-        <div className="flex items-center justify-end gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="lg:hidden"
-            onClick={() => setShowSetup(true)}
-          >
-            <Wrench className="w-3.5 h-3.5" />
-            Setup
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="lg:hidden"
-            onClick={() => setMobileAi(true)}
-          >
-            <Bot className="w-3.5 h-3.5" />
-            Asistente
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="hidden lg:inline-flex"
-            onClick={() => setShowAi((v) => !v)}
-          >
-            {showAi ? <PanelRightClose className="w-3.5 h-3.5" /> : <PanelRightOpen className="w-3.5 h-3.5" />}
-            <Bot className="w-3.5 h-3.5" />
-            Asistente
-          </Button>
-        </div>
-        <div className="rounded-lg border flex-1 min-h-0 flex flex-col overflow-hidden">
-          <div className="px-3 sm:px-4 py-2 border-b bg-muted/30 flex items-center gap-2 shrink-0">
+      <PageShell maxWidth="full" className="flex flex-col h-[calc(100vh-3.5rem)] py-4 space-y-4">
+        <PageHeader
+          title="Web terminal"
+          description={instanceName ? `Sesión en ${instanceName}` : "Conectando a la instancia…"}
+          actions={
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                className="h-9 lg:hidden"
+                onClick={() => setShowSetup(true)}
+              >
+                <Wrench className="w-3.5 h-3.5" />
+                Setup
+              </Button>
+              <Button
+                variant="outline"
+                className="h-9 lg:hidden"
+                onClick={() => setMobileAi(true)}
+              >
+                <Bot className="w-3.5 h-3.5" />
+                Asistente
+              </Button>
+              <Button
+                variant="outline"
+                className="h-9 hidden lg:inline-flex"
+                onClick={() => setShowAi((v) => !v)}
+              >
+                {showAi ? <PanelRightClose className="w-3.5 h-3.5" /> : <PanelRightOpen className="w-3.5 h-3.5" />}
+                <Bot className="w-3.5 h-3.5" />
+                Asistente
+              </Button>
+            </div>
+          }
+        />
+        <div className="rounded-2xl border border-border flex-1 min-h-0 flex flex-col overflow-hidden">
+          <div className="px-3 sm:px-4 py-2.5 border-b border-border bg-muted/30 flex items-center gap-2 shrink-0">
             <span
               className={`w-2 h-2 rounded-full shrink-0 ${connected ? "bg-green-500" : "bg-yellow-500 animate-pulse"}`}
             />
@@ -103,7 +108,7 @@ export default function ConsolePage() {
             )}
           </div>
         </div>
-      </div>
+      </PageShell>
 
       <Sheet open={showSetup} onOpenChange={setShowSetup}>
         <SheetContent side="left" className="w-full sm:max-w-sm p-0">

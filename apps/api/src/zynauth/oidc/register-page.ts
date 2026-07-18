@@ -1,38 +1,17 @@
 import { ZYNAUTH } from '../zynauth.config';
-
-function esc(v: unknown): string {
-  return String(v ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-const PASS_THROUGH = [
-  'client_id',
-  'redirect_uri',
-  'response_type',
-  'scope',
-  'state',
-  'nonce',
-  'code_challenge',
-  'code_challenge_method',
-];
+import { HOSTED_UI_CSS, esc, PASS_THROUGH, hiddenFields } from './hosted-ui-shared';
 
 export function renderRegisterPage(opts: {
   params: Record<string, string>;
   error: string | null;
   appName?: string;
 }): string {
-  const hidden = PASS_THROUGH.filter((k) => opts.params[k] != null)
-    .map((k) => `<input type="hidden" name="${k}" value="${esc(opts.params[k])}" />`)
-    .join('\n      ');
-
-  const errorHtml = opts.error
-    ? `<div class="error">${esc(opts.error)}</div>`
-    : '';
-
+  const errorHtml = opts.error ? `<div class="error">${esc(opts.error)}</div>` : '';
   const subtitle = opts.appName ? `Crea tu cuenta en ${esc(opts.appName)}` : 'Crea tu cuenta';
+
+  const loginQs = PASS_THROUGH.filter((k) => opts.params[k] != null)
+    .map((k) => `${encodeURIComponent(k)}=${encodeURIComponent(opts.params[k])}`)
+    .join('&');
 
   return `<!doctype html>
 <html lang="es">
@@ -40,70 +19,40 @@ export function renderRegisterPage(opts: {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Registrarse &middot; ZynAuth</title>
-  <style>
-    :root { color-scheme: dark; }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0; min-height: 100vh; display: grid; place-items: center;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0a0e1a; color: #e2e8f0;
-    }
-    .card {
-      width: 100%; max-width: 380px; padding: 32px;
-      background: #111827; border: 1px solid #1f2937; border-radius: 16px;
-    }
-    .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }
-    .logo {
-      width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center;
-      background: #2563eb; color: #fff; font-weight: 800; font-size: 18px;
-    }
-    .brand h1 { font-size: 16px; margin: 0; font-weight: 600; }
-    .brand span { display: block; font-size: 12px; color: #64748b; font-weight: 400; }
-    label { display: block; font-size: 13px; color: #94a3b8; margin: 14px 0 6px; }
-    input[type=text], input[type=email], input[type=password] {
-      width: 100%; padding: 11px 12px; border-radius: 9px;
-      background: #0a0e1a; border: 1px solid #1f2937; color: #e2e8f0; font-size: 14px;
-    }
-    input:focus { outline: none; border-color: #2563eb; }
-    button {
-      width: 100%; margin-top: 22px; padding: 12px; border: 0; border-radius: 9px;
-      background: #2563eb; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;
-    }
-    button:hover { background: #1d4ed8; }
-    .error {
-      margin-top: 14px; padding: 10px 12px; border-radius: 9px; font-size: 13px;
-      background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.3); color: #fca5a5;
-    }
-    .foot { margin-top: 20px; font-size: 11px; color: #475569; text-align: center; }
-    .foot a { color: #3b82f6; text-decoration: none; }
-  </style>
+  <style>${HOSTED_UI_CSS}</style>
 </head>
 <body>
-  <form class="card" method="post" action="${ZYNAUTH.paths.register}">
-    <div class="brand">
+  <div class="wrap">
+    <div class="head">
       <div class="logo">Z</div>
-      <div><h1>ZynAuth<span>${subtitle}</span></h1></div>
+      <h1>ZynAuth</h1>
+      <p>${subtitle}</p>
     </div>
-    ${errorHtml}
-    <label for="name">Nombre</label>
-    <input id="name" type="text" name="name" autocomplete="name" value="${esc(opts.params.name)}" />
-    <label for="email">Email</label>
-    <input id="email" type="email" name="email" autocomplete="username" required autofocus value="${esc(opts.params.email)}" />
-    <label for="password">Contrase&ntilde;a</label>
-    <input id="password" type="password" name="password" autocomplete="new-password" required minlength="6" />
-    <label for="password2">Confirmar contrase&ntilde;a</label>
-    <input id="password2" type="password" name="password2" autocomplete="new-password" required />
-    ${hidden}
-    <button type="submit">Crear cuenta</button>
-    <div class="foot">
-      &iquest;Ya tienes cuenta? <a href="${ZYNAUTH.paths.login}?${esc(new URLSearchParams(
-        Object.fromEntries(
-          PASS_THROUGH.filter((k) => opts.params[k] != null).map((k) => [k, opts.params[k]]),
-        ),
-      ).toString())}">Inicia sesi&oacute;n</a>
-      &middot; Protegido por ZynAuth
-    </div>
-  </form>
+    <form class="card" method="post" action="${ZYNAUTH.paths.register}">
+      ${errorHtml}
+      <div class="field">
+        <label for="name">Nombre</label>
+        <input id="name" type="text" name="name" autocomplete="name" value="${esc(opts.params.name)}" />
+      </div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" type="email" name="email" autocomplete="username" required autofocus value="${esc(opts.params.email)}" />
+      </div>
+      <div class="field">
+        <label for="password">Contrase&ntilde;a</label>
+        <input id="password" type="password" name="password" autocomplete="new-password" required minlength="6" />
+      </div>
+      <div class="field">
+        <label for="password2">Confirmar contrase&ntilde;a</label>
+        <input id="password2" type="password" name="password2" autocomplete="new-password" required />
+      </div>
+      ${hiddenFields(opts.params)}
+      <button type="submit">Crear cuenta</button>
+      <div class="foot">
+        &iquest;Ya tienes cuenta? <a href="${ZYNAUTH.paths.login}?${loginQs}">Inicia sesi&oacute;n</a>
+      </div>
+    </form>
+  </div>
 </body>
 </html>`;
 }

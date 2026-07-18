@@ -1,38 +1,12 @@
 import { ZYNAUTH } from '../zynauth.config';
-
-function esc(v: unknown): string {
-  return String(v ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-// Campos del flujo authorize que deben viajar como hidden en el POST /oauth2/login.
-const PASS_THROUGH = [
-  'client_id',
-  'redirect_uri',
-  'response_type',
-  'scope',
-  'state',
-  'nonce',
-  'code_challenge',
-  'code_challenge_method',
-];
+import { HOSTED_UI_CSS, esc, PASS_THROUGH, hiddenFields } from './hosted-ui-shared';
 
 export function renderLoginPage(opts: {
   params: Record<string, string>;
   error: string | null;
   appName?: string;
 }): string {
-  const hidden = PASS_THROUGH.filter((k) => opts.params[k] != null)
-    .map((k) => `<input type="hidden" name="${k}" value="${esc(opts.params[k])}" />`)
-    .join('\n      ');
-
-  const errorHtml = opts.error
-    ? `<div class="error">${esc(opts.error)}</div>`
-    : '';
-
+  const errorHtml = opts.error ? `<div class="error">${esc(opts.error)}</div>` : '';
   const subtitle = opts.appName
     ? `Inicia sesi&oacute;n en ${esc(opts.appName)}`
     : 'Inicia sesi&oacute;n para continuar';
@@ -47,62 +21,32 @@ export function renderLoginPage(opts: {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Iniciar sesion &middot; ZynAuth</title>
-  <style>
-    :root { color-scheme: dark; }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0; min-height: 100vh; display: grid; place-items: center;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0a0e1a; color: #e2e8f0;
-    }
-    .card {
-      width: 100%; max-width: 380px; padding: 32px;
-      background: #111827; border: 1px solid #1f2937; border-radius: 16px;
-    }
-    .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }
-    .logo {
-      width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center;
-      background: #2563eb; color: #fff; font-weight: 800; font-size: 18px;
-    }
-    .brand h1 { font-size: 16px; margin: 0; font-weight: 600; }
-    .brand span { display: block; font-size: 12px; color: #64748b; font-weight: 400; }
-    label { display: block; font-size: 13px; color: #94a3b8; margin: 14px 0 6px; }
-    input[type=email], input[type=password] {
-      width: 100%; padding: 11px 12px; border-radius: 9px;
-      background: #0a0e1a; border: 1px solid #1f2937; color: #e2e8f0; font-size: 14px;
-    }
-    input:focus { outline: none; border-color: #2563eb; }
-    button {
-      width: 100%; margin-top: 22px; padding: 12px; border: 0; border-radius: 9px;
-      background: #2563eb; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;
-    }
-    button:hover { background: #1d4ed8; }
-    .error {
-      margin-top: 14px; padding: 10px 12px; border-radius: 9px; font-size: 13px;
-      background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.3); color: #fca5a5;
-    }
-    .foot { margin-top: 20px; font-size: 11px; color: #475569; text-align: center; }
-    .foot a { color: #3b82f6; text-decoration: none; }
-  </style>
+  <style>${HOSTED_UI_CSS}</style>
 </head>
 <body>
-  <form class="card" method="post" action="${ZYNAUTH.paths.login}">
-    <div class="brand">
+  <div class="wrap">
+    <div class="head">
       <div class="logo">Z</div>
-      <div><h1>ZynAuth<span>${subtitle}</span></h1></div>
+      <h1>ZynAuth</h1>
+      <p>${subtitle}</p>
     </div>
-    ${errorHtml}
-    <label for="email">Email</label>
-    <input id="email" type="email" name="email" autocomplete="username" required autofocus value="${esc(opts.params.email)}" />
-    <label for="password">Contrase&ntilde;a</label>
-    <input id="password" type="password" name="password" autocomplete="current-password" required />
-    ${hidden}
-    <button type="submit">Iniciar sesion</button>
-    <div class="foot">
-      &iquest;No tienes cuenta? <a href="${ZYNAUTH.paths.register}?${registerQs}">Reg&iacute;strate</a>
-      &middot; Protegido por ZynAuth
-    </div>
-  </form>
+    <form class="card" method="post" action="${ZYNAUTH.paths.login}">
+      ${errorHtml}
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" type="email" name="email" autocomplete="username" required autofocus value="${esc(opts.params.email)}" />
+      </div>
+      <div class="field">
+        <label for="password">Contrase&ntilde;a</label>
+        <input id="password" type="password" name="password" autocomplete="current-password" required />
+      </div>
+      ${hiddenFields(opts.params)}
+      <button type="submit">Continuar</button>
+      <div class="foot">
+        &iquest;No tienes cuenta? <a href="${ZYNAUTH.paths.register}?${registerQs}">Reg&iacute;strate</a>
+      </div>
+    </form>
+  </div>
 </body>
 </html>`;
 }

@@ -4,6 +4,9 @@ import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import { Header } from "@/components/layout/header"
+import { PageHeader } from "@/components/layout/page-header"
+import { PageShell } from "@/components/layout/page-shell"
+import { EmptyState } from "@/components/layout/empty-state"
 import { api } from "@/lib/api"
 import { toast } from "@/hooks/use-toast"
 import { formatApiError } from "@/lib/format-api-error"
@@ -11,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { TableRowsSkeleton } from "@/components/skeletons/page-skeletons"
 import {
   Dialog,
   DialogContent,
@@ -19,7 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Users, Plus, Loader2, Trash2, KeyRound, ChevronLeft } from "lucide-react"
+import { Users, Plus, Trash2, KeyRound, ChevronLeft } from "lucide-react"
 
 interface AppUser {
   id: string
@@ -42,12 +46,9 @@ export default function AppUsersPage() {
   const [resetTarget, setResetTarget] = useState<AppUser | null>(null)
   const [busy, setBusy] = useState(false)
 
-  // form create
   const [email, setEmail] = useState("")
   const [name, setName] = useState("")
   const [password, setPassword] = useState("")
-
-  // form reset password
   const [newPassword, setNewPassword] = useState("")
 
   async function load() {
@@ -106,66 +107,82 @@ export default function AppUsersPage() {
         title="Usuarios de la app"
         breadcrumbs={[{ label: "Identity" }, { label: "Apps" }, { label: "Usuarios" }]}
       />
-      <div className="w-full max-w-4xl px-4 py-6 sm:px-6 space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Link href="/dashboard/apps" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-                <ChevronLeft className="w-3.5 h-3.5" /> Apps
-              </Link>
-            </div>
-            <h2 className="text-xl font-semibold">Pool de usuarios</h2>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Usuarios registrados en este app client · <code className="font-mono text-xs">{clientId}</code>
-            </p>
-          </div>
-          <Button size="sm" onClick={() => { resetCreateForm(); setShowCreate(true) }}>
-            <Plus className="w-3.5 h-3.5" /> Añadir usuario
-          </Button>
-        </div>
+      <PageShell maxWidth="4xl">
+        <Link
+          href="/dashboard/apps"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Apps
+        </Link>
+
+        <PageHeader
+          title="Pool de usuarios"
+          description={`Usuarios registrados en este app client · ${clientId}`}
+          actions={
+            <Button className="h-9" onClick={() => { resetCreateForm(); setShowCreate(true) }}>
+              <Plus className="h-4 w-4" />
+              Añadir usuario
+            </Button>
+          }
+        />
 
         {loading ? (
-          <div className="rounded-lg border p-8 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
-        ) : users.length === 0 ? (
-          <div className="rounded-lg border p-12 text-center">
-            <Users className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground mb-4">
-              Sin usuarios todavía. Puedes crearlos aquí o dejar que se registren solos desde la Hosted UI.
-            </p>
-            <Button size="sm" onClick={() => { resetCreateForm(); setShowCreate(true) }}>
-              <Plus className="w-3.5 h-3.5" /> Crear el primero
-            </Button>
+          <div className="overflow-hidden rounded-2xl border border-border bg-card/50">
+            <TableRowsSkeleton rows={5} cols={1} />
           </div>
+        ) : users.length === 0 ? (
+          <EmptyState
+            icon={Users}
+            title="Sin usuarios todavía"
+            description="Puedes crearlos aquí o dejar que se registren solos desde la Hosted UI."
+            action={
+              <Button className="h-9" onClick={() => { resetCreateForm(); setShowCreate(true) }}>
+                <Plus className="h-4 w-4" />
+                Crear el primero
+              </Button>
+            }
+          />
         ) : (
-          <div className="rounded-lg border divide-y">
+          <div className="overflow-hidden rounded-2xl border border-border bg-card/50 divide-y divide-border">
             {users.map((u) => (
-              <div key={u.id} className="flex items-center justify-between px-4 py-3 gap-3">
+              <div key={u.id} className="flex items-center justify-between gap-3 px-5 py-4 transition-colors hover:bg-muted/30">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm truncate">{u.email}</span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="truncate text-sm font-medium">{u.email}</span>
                     {u.emailVerified && <Badge variant="secondary" className="text-xs">verificado</Badge>}
                     {u.mfaEnabled && <Badge variant="outline" className="text-xs">MFA</Badge>}
                   </div>
-                  {u.name && <p className="text-xs text-muted-foreground mt-0.5">{u.name}</p>}
-                  <p className="text-xs text-muted-foreground mt-0.5">
+                  {u.name && <p className="mt-0.5 text-xs text-muted-foreground">{u.name}</p>}
+                  <p className="mt-0.5 text-xs text-muted-foreground">
                     {new Date(u.createdAt).toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric" })}
                   </p>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button variant="ghost" size="icon" className="h-7 w-7" title="Resetear contraseña" onClick={() => { setResetTarget(u); setNewPassword("") }}>
-                    <KeyRound className="w-3.5 h-3.5" />
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9"
+                    title="Resetear contraseña"
+                    onClick={() => { setResetTarget(u); setNewPassword("") }}
+                  >
+                    <KeyRound className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteTarget(u)}>
-                    <Trash2 className="w-3.5 h-3.5" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => setDeleteTarget(u)}
+                  >
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
             ))}
           </div>
         )}
-      </div>
+      </PageShell>
 
-      {/* Crear usuario */}
       <Dialog open={showCreate} onOpenChange={(o) => { if (!o) { setShowCreate(false); resetCreateForm() } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -175,26 +192,25 @@ export default function AppUsersPage() {
           <div className="space-y-3">
             <div>
               <label className="text-sm font-medium">Email</label>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1" autoFocus />
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1 h-9" autoFocus />
             </div>
             <div>
               <label className="text-sm font-medium">Nombre (opcional)</label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} className="mt-1" />
+              <Input value={name} onChange={(e) => setName(e.target.value)} className="mt-1 h-9" />
             </div>
             <div>
               <label className="text-sm font-medium">Contraseña temporal</label>
-              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1" minLength={6} />
-              <p className="text-xs text-muted-foreground mt-1">Mínimo 6 caracteres.</p>
+              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 h-9" minLength={6} />
+              <p className="mt-1 text-xs text-muted-foreground">Mínimo 6 caracteres.</p>
             </div>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => { setShowCreate(false); resetCreateForm() }}>Cancelar</Button>
-            <Button onClick={createUser} disabled={busy}>{busy ? "..." : "Crear"}</Button>
+            <Button variant="outline" className="h-9" onClick={() => { setShowCreate(false); resetCreateForm() }}>Cancelar</Button>
+            <Button className="h-9" onClick={createUser} disabled={busy}>{busy ? "..." : "Crear"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Reset password */}
       <Dialog open={!!resetTarget} onOpenChange={(o) => { if (!o) { setResetTarget(null); setNewPassword("") } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -203,16 +219,15 @@ export default function AppUsersPage() {
           </DialogHeader>
           <div>
             <label className="text-sm font-medium">Nueva contraseña</label>
-            <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="mt-1" minLength={6} autoFocus />
+            <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="mt-1 h-9" minLength={6} autoFocus />
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => { setResetTarget(null); setNewPassword("") }}>Cancelar</Button>
-            <Button onClick={resetPassword} disabled={busy || newPassword.length < 6}>{busy ? "..." : "Actualizar"}</Button>
+            <Button variant="outline" className="h-9" onClick={() => { setResetTarget(null); setNewPassword("") }}>Cancelar</Button>
+            <Button className="h-9" onClick={resetPassword} disabled={busy || newPassword.length < 6}>{busy ? "..." : "Actualizar"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Confirmar borrado */}
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(o) => !o && setDeleteTarget(null)}

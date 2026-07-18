@@ -3,6 +3,9 @@
 import { useEffect, useState, useRef } from "react"
 import Link from "next/link"
 import { Header } from "@/components/layout/header"
+import { PageHeader } from "@/components/layout/page-header"
+import { PageShell } from "@/components/layout/page-shell"
+import { EmptyState } from "@/components/layout/empty-state"
 import { api } from "@/lib/api"
 import { toast } from "@/hooks/use-toast"
 import { formatApiError } from "@/lib/format-api-error"
@@ -191,44 +194,42 @@ export default function StoragePage() {
   return (
     <>
       <Header title="Object Storage" breadcrumbs={[{ label: "Storage" }]} />
-      <div className="w-full px-4 py-6 sm:px-6 space-y-4">
+      <PageShell maxWidth="full">
         {loading && buckets.length === 0 ? (
           <StorageSkeleton />
         ) : (
           <>
-        {/* Toolbar */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold">Buckets</h2>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Almacenamiento de objetos estilo S3
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground mr-1">
-              <button
-                onClick={() => loadBuckets(true)}
-                disabled={refreshing}
-                className="inline-flex items-center justify-center rounded-full border w-7 h-7 hover:bg-accent transition-colors disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
-              </button>
-              <span>Actualizado {timeAgo(lastUpdated)}</span>
-            </div>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/dashboard/storage/docs">
-                <BookOpen className="w-3.5 h-3.5" /> Documentación
-              </Link>
-            </Button>
-            <Button size="sm" onClick={() => setShowCreateBucket(true)}>
-              <Plus className="w-3.5 h-3.5" /> Crear bucket
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          title="Buckets"
+          description="Almacenamiento de objetos estilo S3"
+          actions={
+            <>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground mr-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => loadBuckets(true)}
+                  disabled={refreshing}
+                  aria-label="Actualizar"
+                >
+                  <RefreshCw className={refreshing ? "animate-spin" : ""} />
+                </Button>
+                <span>Actualizado {timeAgo(lastUpdated)}</span>
+              </div>
+              <Button variant="outline" asChild>
+                <Link href="/dashboard/storage/docs">
+                  <BookOpen /> Documentación
+                </Link>
+              </Button>
+              <Button onClick={() => setShowCreateBucket(true)}>
+                <Plus /> Crear bucket
+              </Button>
+            </>
+          }
+        />
 
-        {/* Create bucket inline */}
         {showCreateBucket && (
-          <div className="rounded-lg border p-4 space-y-1.5">
+          <div className="rounded-2xl border border-border p-4 space-y-1.5">
             <label className="text-sm font-medium">Nombre del bucket</label>
             <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
               <Input
@@ -240,10 +241,10 @@ export default function StoragePage() {
                 autoFocus
               />
               <div className="flex gap-2 shrink-0">
-                <Button size="sm" onClick={createBucket}>
-                  <FolderPlus className="w-3.5 h-3.5" /> Crear
+                <Button onClick={createBucket}>
+                  <FolderPlus /> Crear
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => setShowCreateBucket(false)}>
+                <Button variant="outline" onClick={() => setShowCreateBucket(false)}>
                   Cancelar
                 </Button>
               </div>
@@ -252,8 +253,7 @@ export default function StoragePage() {
           </div>
         )}
 
-        {/* Main layout: buckets sidebar + objects panel */}
-        <div className="rounded-lg border overflow-hidden flex flex-col lg:flex-row min-h-[520px]">
+        <div className="rounded-2xl border border-border overflow-hidden flex flex-col lg:flex-row min-h-[520px]">
           {/* Buckets panel */}
           <div className="lg:w-64 border-b lg:border-b-0 lg:border-r bg-muted/20 shrink-0">
             <div className="px-3 py-2.5 border-b">
@@ -274,10 +274,19 @@ export default function StoragePage() {
                   <Loader2 className="w-3.5 h-3.5 animate-spin" /> Cargando...
                 </p>
               ) : filteredBuckets.length === 0 ? (
-                <div className="p-6 text-center">
-                  <Database className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
-                  <p className="text-xs text-muted-foreground">Sin buckets</p>
-                </div>
+                <EmptyState
+                  icon={Database}
+                  title="Sin buckets"
+                  description={search ? "No hay buckets que coincidan" : "Crea tu primer bucket para empezar"}
+                  className="border-0 bg-transparent py-8"
+                  action={
+                    !search ? (
+                      <Button onClick={() => setShowCreateBucket(true)}>
+                        <Plus /> Crear bucket
+                      </Button>
+                    ) : undefined
+                  }
+                />
               ) : (
                 <div className="space-y-0.5">
                   {filteredBuckets.map((b) => (
@@ -335,21 +344,20 @@ export default function StoragePage() {
                         e.target.value = ""
                       }}
                     />
-                    <Button size="sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
+                    <Button onClick={() => fileRef.current?.click()} disabled={uploading}>
                       {uploading ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <Loader2 className="animate-spin" />
                       ) : (
-                        <Upload className="w-3.5 h-3.5" />
+                        <Upload />
                       )}
                       Subir
                     </Button>
                     <Button
-                      size="sm"
                       variant="outline"
                       className="text-destructive hover:text-destructive"
                       onClick={() => setDeleteTarget({ type: "bucket", id: selected.id })}
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 />
                       Eliminar bucket
                     </Button>
                   </div>
@@ -371,16 +379,24 @@ export default function StoragePage() {
 
                 {/* Objects table */}
                 {filteredObjects.length === 0 ? (
-                  <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
-                    <HardDrive className="w-10 h-10 text-muted-foreground/40 mb-3" />
-                    <p className="text-sm text-muted-foreground mb-4">
-                      {objectSearch ? "No hay objetos que coincidan" : "Bucket vacío — sube tu primer archivo"}
-                    </p>
-                    {!objectSearch && (
-                      <Button size="sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
-                        <Upload className="w-3.5 h-3.5" /> Subir archivo
-                      </Button>
-                    )}
+                  <div className="flex-1 flex items-center justify-center p-6">
+                    <EmptyState
+                      icon={HardDrive}
+                      title={objectSearch ? "Sin resultados" : "Bucket vacío"}
+                      description={
+                        objectSearch
+                          ? "No hay objetos que coincidan con tu búsqueda"
+                          : "Sube tu primer archivo para empezar"
+                      }
+                      className="border-0 bg-transparent w-full max-w-md"
+                      action={
+                        !objectSearch ? (
+                          <Button onClick={() => fileRef.current?.click()} disabled={uploading}>
+                            <Upload /> Subir archivo
+                          </Button>
+                        ) : undefined
+                      }
+                    />
                   </div>
                 ) : (
                   <div className="overflow-x-auto flex-1">
@@ -431,29 +447,32 @@ export default function StoragePage() {
                 )}
               </>
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
-                <Database className="w-12 h-12 text-muted-foreground/30 mb-4" />
-                <p className="text-sm font-medium mb-1">Selecciona un bucket</p>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Elige un bucket de la lista o crea uno nuevo.
-                </p>
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={() => setShowCreateBucket(true)}>
-                    <Plus className="w-3.5 h-3.5" /> Crear bucket
-                  </Button>
-                  <Button size="sm" variant="outline" asChild>
-                    <Link href="/dashboard/storage/docs">
-                      <BookOpen className="w-3.5 h-3.5" /> Ver documentación
-                    </Link>
-                  </Button>
-                </div>
+              <div className="flex-1 flex items-center justify-center p-6">
+                <EmptyState
+                  icon={Database}
+                  title="Selecciona un bucket"
+                  description="Elige un bucket de la lista o crea uno nuevo"
+                  className="border-0 bg-transparent w-full max-w-md"
+                  action={
+                    <div className="flex flex-wrap justify-center gap-2">
+                      <Button onClick={() => setShowCreateBucket(true)}>
+                        <Plus /> Crear bucket
+                      </Button>
+                      <Button variant="outline" asChild>
+                        <Link href="/dashboard/storage/docs">
+                          <BookOpen /> Ver documentación
+                        </Link>
+                      </Button>
+                    </div>
+                  }
+                />
               </div>
             )}
           </div>
         </div>
           </>
         )}
-      </div>
+      </PageShell>
 
       <ConfirmDialog
         open={!!deleteTarget}

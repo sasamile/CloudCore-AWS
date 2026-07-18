@@ -3,6 +3,10 @@
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Header } from "@/components/layout/header"
+import { PageHeader } from "@/components/layout/page-header"
+import { PageShell } from "@/components/layout/page-shell"
+import { EmptyState } from "@/components/layout/empty-state"
+import { ErrorState } from "@/components/layout/error-state"
 import { api } from "@/lib/api"
 import type { InstanceNetworking } from "@/lib/instance"
 import {
@@ -82,10 +86,9 @@ function ToolbarDropdown({
     <div ref={ref} className="relative">
       <Button
         variant={disabled ? "secondary" : "outline"}
-        size="sm"
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
-        className="gap-1"
+        className="h-9 gap-1"
       >
         {label}
         <ChevronDown className="w-3.5 h-3.5 opacity-60" />
@@ -141,15 +144,18 @@ export default function InstancesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [lastUpdated, setLastUpdated] = useState(new Date())
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [error, setError] = useState("")
 
   async function fetchInstances(silent = false) {
     if (!silent) setLoading(true)
     else setRefreshing(true)
+    setError("")
     try {
       const data = await api.get<InstanceNetworking[]>("/instances")
       setInstances(data)
       setLastUpdated(new Date())
     } catch {
+      setError("No se pudieron cargar las instancias.")
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -212,17 +218,18 @@ export default function InstancesPage() {
         title="Instances"
         breadcrumbs={[{ label: "Compute", href: "/dashboard/instances" }]}
       />
-      <div className="w-full px-4 py-6 sm:px-6 space-y-4">
-        {/* Toolbar */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-xl font-semibold">Instances ({filtered.length})</h2>
+      <PageShell maxWidth="7xl">
+        <PageHeader
+          title={`Instances (${filtered.length})`}
+          description="Administra tus instancias de cómputo, estado y conexiones."
+          actions={
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-2 text-xs text-muted-foreground mr-1">
               <button
                 onClick={() => fetchInstances(true)}
                 disabled={refreshing}
                 title="Refresh"
-                className="inline-flex items-center justify-center rounded-full border w-7 h-7 hover:bg-accent transition-colors disabled:opacity-50"
+                className="inline-flex items-center justify-center rounded-lg border w-9 h-9 hover:bg-accent transition-colors duration-150 disabled:opacity-50"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
               </button>
@@ -231,7 +238,7 @@ export default function InstancesPage() {
 
             <Button
               variant={canConnect ? "default" : "outline"}
-              size="sm"
+              className="h-9"
               disabled={!canConnect}
               title={
                 canConnect
@@ -340,16 +347,19 @@ export default function InstancesPage() {
               }
             </ToolbarDropdown>
 
-            <Button size="sm" asChild>
+            <Button className="h-9" asChild>
               <Link href="/dashboard/instances/new">
                 <Plus className="w-3.5 h-3.5" /> Launch instance
               </Link>
             </Button>
           </div>
-        </div>
+          }
+        />
 
-        {/* Table card */}
-        <div className="rounded-lg border">
+        {error && !loading ? (
+          <ErrorState message={error} onRetry={() => fetchInstances()} />
+        ) : (
+        <div className="rounded-2xl border border-border">
           <div className="px-4 py-2.5 border-b bg-muted/30">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
@@ -366,17 +376,19 @@ export default function InstancesPage() {
           {loading ? (
             <TableRowsSkeleton rows={6} cols={6} />
           ) : filtered.length === 0 ? (
-            <div className="p-12 text-center">
-              <Server className="w-10 h-10 text-muted-foreground/50 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground mb-4">
-                {search ? "No instances match your search" : "No instances yet"}
-              </p>
-              {!search && (
-                <Button size="sm" asChild>
-                  <Link href="/dashboard/instances/new">Launch instance</Link>
-                </Button>
-              )}
-            </div>
+            <EmptyState
+              icon={Server}
+              title={search ? "No instances match your search" : "No instances yet"}
+              description={search ? "Prueba con otro término de búsqueda." : "Lanza tu primera instancia para empezar."}
+              action={
+                !search ? (
+                  <Button className="h-9" asChild>
+                    <Link href="/dashboard/instances/new">Launch instance</Link>
+                  </Button>
+                ) : undefined
+              }
+              className="border-0 rounded-none bg-transparent"
+            />
           ) : (
             <>
               {/* Mobile card list */}
@@ -536,16 +548,16 @@ export default function InstancesPage() {
             </>
           )}
         </div>
+        )}
 
-        {/* Bottom details panel */}
         {selectedInstance && (
-          <div className="rounded-lg border">
+          <div className="rounded-2xl border border-border">
             <div className="px-4 py-3 border-b flex items-center justify-between">
               <h3 className="text-sm font-medium">
                 <span className="font-mono text-primary">{formatInstanceId(selectedInstance.id)}</span>
                 <span className="text-muted-foreground"> ({selectedInstance.name})</span>
               </h3>
-              <Button variant="link" size="sm" className="h-auto p-0" asChild>
+              <Button variant="link" className="h-9 px-0" asChild>
                 <Link href={`/dashboard/instances/${selectedInstance.id}`}>View details</Link>
               </Button>
             </div>
@@ -592,7 +604,7 @@ export default function InstancesPage() {
             </div>
           </div>
         )}
-      </div>
+      </PageShell>
     </>
   )
 }

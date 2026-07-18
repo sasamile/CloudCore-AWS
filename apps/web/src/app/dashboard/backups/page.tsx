@@ -3,6 +3,9 @@
 import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { Header } from "@/components/layout/header"
+import { PageHeader } from "@/components/layout/page-header"
+import { PageShell } from "@/components/layout/page-shell"
+import { EmptyState } from "@/components/layout/empty-state"
 import { api } from "@/lib/api"
 import { formatApiError } from "@/lib/format-api-error"
 import { toast } from "@/hooks/use-toast"
@@ -134,38 +137,36 @@ function BackupsContent() {
   return (
     <>
       <Header title="Snapshots" breadcrumbs={[{ label: "Storage" }]} />
-      <div className="w-full px-4 py-6 sm:px-6 space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold">Snapshots</h2>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Guarda el estado de una instancia y restáurala cuando quieras.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <select
-              value={selectedInstance}
-              onChange={(e) => setSelectedInstance(e.target.value)}
-              className="flex h-8 rounded-md border border-input bg-transparent px-3 text-sm"
-            >
-              <option value="">Todas las instancias</option>
-              {instances.map((inst) => (
-                <option key={inst.id} value={inst.id}>
-                  {inst.name}
-                </option>
-              ))}
-            </select>
-            <Button variant="outline" size="icon" className="h-8 w-8" onClick={fetchBackups}>
-              <RefreshCw className="w-3.5 h-3.5" />
-            </Button>
-            {selectedInstance && (
-              <Button size="sm" onClick={handleCreate} disabled={creating || selectedInst?.status !== "running"}>
-                {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                Crear snapshot
+      <PageShell>
+        <PageHeader
+          title="Snapshots"
+          description="Guarda el estado de una instancia y restáurala cuando quieras."
+          actions={
+            <>
+              <select
+                value={selectedInstance}
+                onChange={(e) => setSelectedInstance(e.target.value)}
+                className="flex h-9 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">Todas las instancias</option>
+                {instances.map((inst) => (
+                  <option key={inst.id} value={inst.id}>
+                    {inst.name}
+                  </option>
+                ))}
+              </select>
+              <Button variant="outline" size="icon" onClick={fetchBackups} aria-label="Actualizar">
+                <RefreshCw />
               </Button>
-            )}
-          </div>
-        </div>
+              {selectedInstance && (
+                <Button onClick={handleCreate} disabled={creating || selectedInst?.status !== "running"}>
+                  {creating ? <Loader2 className="animate-spin" /> : <Plus />}
+                  Crear snapshot
+                </Button>
+              )}
+            </>
+          }
+        />
 
         {selectedInstance && selectedInst?.status !== "running" && (
           <p className="text-xs text-amber-600">
@@ -173,7 +174,7 @@ function BackupsContent() {
           </p>
         )}
 
-        <div className="rounded-lg border">
+        <div className="rounded-2xl border border-border">
           <div className="px-4 py-2.5 border-b bg-muted/30">
             <div className="relative max-w-sm">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
@@ -190,17 +191,25 @@ function BackupsContent() {
           {loading ? (
             <TableRowsSkeleton rows={5} cols={5} />
           ) : filtered.length === 0 ? (
-            <div className="p-12 text-center">
-              <HardDrive className="w-10 h-10 text-muted-foreground/50 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground mb-4">
-                {search ? "No hay snapshots que coincidan" : "Aún no hay snapshots"}
-              </p>
-              {!search && selectedInstance && selectedInst?.status === "running" && (
-                <Button size="sm" onClick={handleCreate} disabled={creating}>
-                  Crear snapshot
-                </Button>
-              )}
-            </div>
+            <EmptyState
+              icon={HardDrive}
+              title={search ? "Sin resultados" : "Aún no hay snapshots"}
+              description={
+                search
+                  ? "No hay snapshots que coincidan con tu búsqueda"
+                  : selectedInstance
+                    ? "Crea un snapshot para guardar el estado de la instancia"
+                    : "Selecciona una instancia para crear snapshots"
+              }
+              className="border-0 bg-transparent"
+              action={
+                !search && selectedInstance && selectedInst?.status === "running" ? (
+                  <Button onClick={handleCreate} disabled={creating}>
+                    <Plus /> Crear snapshot
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -226,8 +235,7 @@ function BackupsContent() {
                         <div className="flex items-center justify-end gap-1">
                           <Button
                             variant="outline"
-                            size="sm"
-                            className="h-7 text-xs"
+                            className="h-9 text-xs"
                             disabled={restoring === b.id}
                             onClick={() => handleRestore(b.id)}
                           >
@@ -255,7 +263,7 @@ function BackupsContent() {
             </div>
           )}
         </div>
-      </div>
+      </PageShell>
     </>
   )
 }

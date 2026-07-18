@@ -4,6 +4,8 @@ import { useEffect, useState } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Header } from "@/components/layout/header"
+import { PageHeader } from "@/components/layout/page-header"
+import { PageShell } from "@/components/layout/page-shell"
 import { api } from "@/lib/api"
 import { formatApiError } from "@/lib/format-api-error"
 import { toast } from "@/hooks/use-toast"
@@ -164,9 +166,9 @@ export default function InstanceDetailPage() {
     return (
       <>
         <Header title="Instance" breadcrumbs={[{ label: "Instances", href: "/dashboard/instances" }]} />
-        <div className="w-full px-4 py-6 sm:px-6">
+        <PageShell>
           <DetailPageSkeleton />
-        </div>
+        </PageShell>
       </>
     )
   }
@@ -199,38 +201,22 @@ export default function InstanceDetailPage() {
         ]}
       />
 
-      <div className="w-full px-4 py-6 sm:px-6 space-y-6">
-        <Button variant="ghost" size="sm" asChild className="-ml-2 text-muted-foreground">
+      <PageShell maxWidth="6xl">
+        <Button variant="ghost" asChild className="-ml-2 h-9 text-muted-foreground">
           <Link href="/dashboard/instances">
             <ArrowLeft className="w-3.5 h-3.5" /> All instances
           </Link>
         </Button>
 
-        {/* Hero */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-3">
-              <h2 className="text-2xl font-semibold tracking-tight">{instance.name}</h2>
-              <StatusBadge status={instance.status} />
-            </div>
-            <p className="text-sm text-muted-foreground font-mono">{instance.id}</p>
-            <div className="flex flex-wrap gap-2 pt-1">
-              <Badge variant="outline">{instance.memoryLimit} MB</Badge>
-              <Badge variant="outline">{instance.cpuLimit} vCPU</Badge>
-              {instance.sshKeyName && <Badge variant="outline">SSH: {instance.sshKeyName}</Badge>}
-              {instance.suggestedDomain && instance.routingMode === "tunnel" && (
-                <Badge variant="secondary" className="font-mono text-[10px]">
-                  {instance.suggestedDomain}
-                </Badge>
-              )}
-            </div>
-          </div>
-
+        <PageHeader
+          title={instance.name}
+          description={instance.id}
+          actions={
           <div className="flex flex-wrap gap-2">
             {instance.status === "stopped" || isError ? (
               <Button
                 variant="outline"
-                size="sm"
+                className="h-9"
                 disabled={!!actionLoading || isError}
                 onClick={() => handleAction("start")}
               >
@@ -238,24 +224,23 @@ export default function InstanceDetailPage() {
                 Start
               </Button>
             ) : (
-              <Button variant="outline" size="sm" disabled={!!actionLoading} onClick={() => handleAction("stop")}>
+              <Button variant="outline" className="h-9" disabled={!!actionLoading} onClick={() => handleAction("stop")}>
                 {actionLoading === "stop" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Square className="w-3.5 h-3.5" />}
                 Stop
               </Button>
             )}
-            <Button variant="outline" size="sm" disabled={!!actionLoading || isError} onClick={() => handleAction("restart")}>
+            <Button variant="outline" className="h-9" disabled={!!actionLoading || isError} onClick={() => handleAction("restart")}>
               {actionLoading === "restart" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCw className="w-3.5 h-3.5" />}
               Restart
             </Button>
-            <Button size="sm" asChild disabled={!isRunning}>
+            <Button className="h-9" asChild disabled={!isRunning}>
               <Link href={`/dashboard/instances/${instance.id}/console`}>
                 <Terminal className="w-3.5 h-3.5" /> Connect
               </Link>
             </Button>
             <Button
               variant="outline"
-              size="sm"
-              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              className="h-9 text-destructive hover:text-destructive hover:bg-destructive/10"
               disabled={!!actionLoading}
               onClick={() => setConfirmDelete(true)}
             >
@@ -263,6 +248,19 @@ export default function InstanceDetailPage() {
               Terminate
             </Button>
           </div>
+          }
+        />
+
+        <div className="flex flex-wrap gap-2">
+          <StatusBadge status={instance.status} />
+          <Badge variant="outline">{instance.memoryLimit} MB</Badge>
+          <Badge variant="outline">{instance.cpuLimit} vCPU</Badge>
+          {instance.sshKeyName && <Badge variant="outline">SSH: {instance.sshKeyName}</Badge>}
+          {instance.suggestedDomain && instance.routingMode === "tunnel" && (
+            <Badge variant="secondary" className="font-mono text-[10px]">
+              {instance.suggestedDomain}
+            </Badge>
+          )}
         </div>
 
         {isNew && (publicUrl || instance.sshCommand) && (
@@ -298,7 +296,7 @@ export default function InstanceDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
             {/* Access */}
-            <Card>
+            <Card className="rounded-2xl border-border shadow-none">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Globe className="w-4 h-4 text-muted-foreground" />
@@ -318,7 +316,7 @@ export default function InstanceDetailPage() {
                     <div className="flex-1 min-w-0">
                       <CopyBlock label={isTunnel ? "URL" : "App URL"} value={publicUrl} />
                     </div>
-                    <Button variant="outline" size="sm" asChild className="shrink-0">
+                    <Button variant="outline" className="h-9 shrink-0" asChild>
                       <a href={publicUrl} target="_blank" rel="noopener noreferrer">
                         Open <ExternalLink className="w-3.5 h-3.5 ml-1" />
                       </a>
@@ -372,7 +370,7 @@ export default function InstanceDetailPage() {
                 )}
 
                 {isRunning && (
-                  <Button size="sm" asChild>
+                  <Button className="h-9" asChild>
                     <Link href={`/dashboard/instances/${instance.id}/console`}>
                       <Terminal className="w-3.5 h-3.5" /> Web terminal
                     </Link>
@@ -383,7 +381,7 @@ export default function InstanceDetailPage() {
 
             {/* SSH — local / port mode only */}
             {!isTunnel && (
-              <Card>
+              <Card className="rounded-2xl border-border shadow-none">
                 <CardHeader className="pb-3 flex flex-row items-center justify-between">
                   <div>
                     <CardTitle className="text-base flex items-center gap-2">
@@ -392,7 +390,7 @@ export default function InstanceDetailPage() {
                     </CardTitle>
                     <CardDescription>Optional — web terminal is usually enough.</CardDescription>
                   </div>
-                  <Button variant="link" size="sm" className="h-auto p-0" asChild>
+                  <Button variant="link" className="h-9 px-0" asChild>
                     <Link href="/dashboard/ssh-keys">Manage keys</Link>
                   </Button>
                 </CardHeader>
@@ -424,7 +422,7 @@ export default function InstanceDetailPage() {
             )}
 
             {/* Technical details — collapsed/minimal */}
-            <Card>
+            <Card className="rounded-2xl border-border shadow-none">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Server className="w-4 h-4 text-muted-foreground" />
@@ -476,7 +474,7 @@ export default function InstanceDetailPage() {
                 href={item.disabled ? "#" : item.href}
                 className={item.disabled ? "pointer-events-none opacity-50" : ""}
               >
-                <Card className="hover:bg-muted/40 transition-colors">
+                <Card className="rounded-2xl border-border shadow-none hover:bg-muted/40 transition-colors">
                   <CardContent className="pt-4 flex items-start gap-3">
                     <div className="p-2 rounded-lg border bg-background">
                       <item.icon className="w-4 h-4 text-muted-foreground" />
@@ -493,7 +491,7 @@ export default function InstanceDetailPage() {
         </div>
 
         {instance.domains.length > 0 && (
-          <Card>
+          <Card className="rounded-2xl border-border shadow-none">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Globe className="w-4 h-4" />
@@ -542,7 +540,7 @@ export default function InstanceDetailPage() {
             </CardContent>
           </Card>
         )}
-      </div>
+      </PageShell>
 
       <ConfirmDialog
         open={confirmDelete}

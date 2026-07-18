@@ -114,8 +114,19 @@ export class IntegrationsController {
     const frontend = process.env.FRONTEND_URL || 'http://localhost:3000';
     try {
       const result = await this.integrations.handleGoogleLoginCallback(code, state);
-      const token = this.auth.tokenForUser(result.userId, result.email);
-      res.redirect(`${frontend}/auth/callback?token=${encodeURIComponent(token)}`);
+      const session = await this.auth.sessionAfterExternalLogin(
+        result.userId,
+        result.email,
+      );
+      if (session.mfaRequired) {
+        res.redirect(
+          `${frontend}/?mfa=1&ticket=${encodeURIComponent(session.mfaTicket)}`,
+        );
+        return;
+      }
+      res.redirect(
+        `${frontend}/auth/callback?token=${encodeURIComponent(session.access_token)}`,
+      );
     } catch (err) {
       console.error('Google OAuth callback failed', err);
       res.redirect(`${frontend}/?google=error`);

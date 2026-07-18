@@ -15,6 +15,8 @@ import {
   BookOpen,
 } from "lucide-react"
 import { Header } from "@/components/layout/header"
+import { PageHeader } from "@/components/layout/page-header"
+import { PageShell } from "@/components/layout/page-shell"
 import { api } from "@/lib/api"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -116,13 +118,13 @@ function MetricCard({
   children?: React.ReactNode
 }) {
   return (
-    <Card>
+    <Card className="rounded-2xl border-border shadow-none">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
         <Icon className="w-4 h-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold tracking-tight">{value}</div>
+        <div className="text-2xl font-semibold tracking-tight">{value}</div>
         {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
         {progress !== undefined && <Progress value={progress} className="mt-3 h-1.5" />}
         {children}
@@ -229,31 +231,27 @@ export default function DashboardPage() {
   return (
     <>
       <Header title="Dashboard" />
-      <div className="w-full px-4 py-6 sm:px-6 space-y-6">
+      <PageShell maxWidth="full">
         {pageLoading ? (
           <DashboardSkeleton />
         ) : (
           <>
-        {/* Header */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold tracking-tight">Resumen</h2>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Infraestructura Docker · actualizado{" "}
-              {lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => loadAll(true)} disabled={refreshing}>
-              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
-            </Button>
-            <Button asChild size="sm">
-              <Link href="/dashboard/instances/new">
-                <Plus className="w-3.5 h-3.5" /> Lanzar instancia
-              </Link>
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          title="Resumen"
+          description={`Infraestructura Docker · actualizado ${lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
+          actions={
+            <>
+              <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => loadAll(true)} disabled={refreshing}>
+                <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
+              </Button>
+              <Button asChild className="h-9">
+                <Link href="/dashboard/instances/new">
+                  <Plus className="w-3.5 h-3.5" /> Lanzar instancia
+                </Link>
+              </Button>
+            </>
+          }
+        />
 
         {/* Metric cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -313,7 +311,7 @@ export default function DashboardPage() {
         {/* Charts row */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* CPU + Memory area chart */}
-          <Card className="lg:col-span-2">
+          <Card className="lg:col-span-2 rounded-2xl border-border shadow-none">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <div>
@@ -380,7 +378,7 @@ export default function DashboardPage() {
           </Card>
 
           {/* Instance status pie */}
-          <Card>
+          <Card className="rounded-2xl border-border shadow-none">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">Estado de instancias</CardTitle>
               <CardDescription className="text-xs">Distribución actual</CardDescription>
@@ -416,7 +414,7 @@ export default function DashboardPage() {
                   </ResponsiveContainer>
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="text-center">
-                      <p className="text-2xl font-bold">{stats?.totalInstances ?? 0}</p>
+                      <p className="text-2xl font-semibold">{stats?.totalInstances ?? 0}</p>
                       <p className="text-[10px] text-muted-foreground">total</p>
                     </div>
                   </div>
@@ -436,7 +434,7 @@ export default function DashboardPage() {
 
         {/* Per-instance bar chart + resource summary */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Card>
+          <Card className="rounded-2xl border-border shadow-none">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">Memoria por instancia</CardTitle>
               <CardDescription className="text-xs">Instancias en ejecución</CardDescription>
@@ -459,14 +457,14 @@ export default function DashboardPage() {
                       ]}
                       contentStyle={{ fontSize: 12, borderRadius: 8 }}
                     />
-                    <Bar dataKey="memory" name="memory" fill="#8b5cf6" radius={[0, 4, 4, 0]} barSize={16} />
+                    <Bar dataKey="memory" name="memory" fill="hsl(var(--muted-foreground))" radius={[0, 4, 4, 0]} barSize={16} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="rounded-2xl border-border shadow-none">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">CPU por instancia</CardTitle>
               <CardDescription className="text-xs">Uso actual de procesador</CardDescription>
@@ -486,7 +484,7 @@ export default function DashboardPage() {
                       formatter={(value: number) => [`${value.toFixed(1)}%`, "CPU"]}
                       contentStyle={{ fontSize: 12, borderRadius: 8 }}
                     />
-                    <Bar dataKey="cpu" name="cpu" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={16} />
+                    <Bar dataKey="cpu" name="cpu" fill="hsl(var(--foreground))" fillOpacity={0.7} radius={[0, 4, 4, 0]} barSize={16} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -495,10 +493,10 @@ export default function DashboardPage() {
         </div>
 
         {/* Recent instances */}
-        <Card>
+        <Card className="rounded-2xl border-border shadow-none">
           <CardHeader className="flex flex-row items-center justify-between py-4">
             <CardTitle className="text-sm font-medium">Instancias recientes</CardTitle>
-            <Button variant="ghost" size="sm" asChild className="text-muted-foreground">
+            <Button variant="ghost" size="sm" asChild className="h-9 text-muted-foreground">
               <Link href="/dashboard/instances">
                 Ver todas <ArrowRight className="w-3 h-3" />
               </Link>
@@ -508,7 +506,7 @@ export default function DashboardPage() {
             {instances.length === 0 ? (
               <div className="p-8 text-center text-sm text-muted-foreground">
                 Aún no tienes instancias.{" "}
-                <Link href="/dashboard/instances/new" className="underline">
+                <Link href="/dashboard/instances/new" className="underline underline-offset-4">
                   Lanza la primera
                 </Link>
               </div>
@@ -526,7 +524,7 @@ export default function DashboardPage() {
                   </thead>
                   <tbody>
                     {instances.slice(0, 5).map((inst) => (
-                      <tr key={inst.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                      <tr key={inst.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors duration-150">
                         <td className="p-4">
                           <Link href={`/dashboard/instances/${inst.id}`} className="font-medium hover:underline">
                             {inst.name}
@@ -562,7 +560,7 @@ export default function DashboardPage() {
             { href: "/dashboard/storage/docs", title: "API Docs", desc: "Integrar storage", icon: BookOpen },
           ].map((item) => (
             <Link key={item.href} href={item.href}>
-              <Card className="h-full hover:bg-accent/50 transition-colors">
+              <Card className="h-full rounded-2xl border-border shadow-none hover:bg-accent/40 transition-colors duration-150">
                 <CardHeader className="pb-2">
                   <div className="flex items-center gap-2 mb-1">
                     <item.icon className="w-4 h-4 text-muted-foreground" />
@@ -576,7 +574,7 @@ export default function DashboardPage() {
         </div>
           </>
         )}
-      </div>
+      </PageShell>
     </>
   )
 }

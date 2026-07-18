@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react"
 import { Header } from "@/components/layout/header"
+import { PageHeader } from "@/components/layout/page-header"
+import { PageShell } from "@/components/layout/page-shell"
+import { EmptyState } from "@/components/layout/empty-state"
 import { api } from "@/lib/api"
 import { formatApiError } from "@/lib/format-api-error"
 import { useToast } from "@/hooks/use-toast"
@@ -195,28 +198,28 @@ export default function DomainsPage() {
   return (
     <>
       <Header title="Domains" breadcrumbs={[{ label: "Network" }]} />
-      <div className="w-full px-4 py-6 sm:px-6 space-y-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold">Domains</h2>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {isTunnel
-                ? "Agrega tu dominio, conéctalo a una instancia y configura el DNS."
-                : "Apunta tus dominios a las instancias de tu servidor."}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" className="h-8 w-8" onClick={fetchAll}>
-              <RefreshCw className="w-3.5 h-3.5" />
-            </Button>
-            <Button size="sm" onClick={() => setShowForm(true)}>
-              <Plus className="w-3.5 h-3.5" /> Agregar dominio
-            </Button>
-          </div>
-        </div>
+      <PageShell>
+        <PageHeader
+          title="Domains"
+          description={
+            isTunnel
+              ? "Agrega tu dominio, conéctalo a una instancia y configura el DNS."
+              : "Apunta tus dominios a las instancias de tu servidor."
+          }
+          actions={
+            <>
+              <Button variant="outline" size="icon" onClick={fetchAll} aria-label="Actualizar">
+                <RefreshCw />
+              </Button>
+              <Button onClick={() => setShowForm(true)}>
+                <Plus /> Agregar dominio
+              </Button>
+            </>
+          }
+        />
 
         {isTunnel && tunnel?.baseDomain && (
-          <div className="rounded-lg border bg-muted/30 px-4 py-3 text-sm">
+          <div className="rounded-2xl border border-border bg-muted/30 px-4 py-3 text-sm">
             <span className="text-muted-foreground">Subdominio automático: </span>
             <code className="font-mono text-xs">
               {"{instancia}."}
@@ -227,7 +230,7 @@ export default function DomainsPage() {
         )}
 
         {showForm && (
-          <div className="rounded-lg border p-4 space-y-4">
+          <div className="rounded-2xl border border-border p-4 space-y-4">
             <h3 className="text-sm font-medium">Agregar dominio</h3>
             <form onSubmit={handleCreate} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -258,11 +261,11 @@ export default function DomainsPage() {
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button type="submit" size="sm" disabled={loading}>
-                  {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                <Button type="submit" disabled={loading}>
+                  {loading ? <Loader2 className="animate-spin" /> : null}
                   {loading ? "Guardando..." : "Agregar"}
                 </Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => setShowForm(false)}>
+                <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
                   Cancelar
                 </Button>
               </div>
@@ -270,7 +273,7 @@ export default function DomainsPage() {
           </div>
         )}
 
-        <div className="rounded-lg border">
+        <div className="rounded-2xl border border-border">
           <div className="px-4 py-2.5 border-b bg-muted/30 flex items-center justify-between gap-3">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
@@ -283,8 +286,8 @@ export default function DomainsPage() {
               />
             </div>
             {isTunnel && pendingCount > 0 && (
-              <Button variant="outline" size="sm" onClick={handleRetrySync} disabled={syncing}>
-                {syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+              <Button variant="outline" onClick={handleRetrySync} disabled={syncing}>
+                {syncing ? <Loader2 className="animate-spin" /> : <RefreshCw />}
                 Reintentar ({pendingCount})
               </Button>
             )}
@@ -293,17 +296,23 @@ export default function DomainsPage() {
           {pageLoading ? (
             <TableRowsSkeleton rows={4} cols={4} />
           ) : filtered.length === 0 ? (
-            <div className="p-12 text-center">
-              <Globe className="w-10 h-10 text-muted-foreground/50 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground mb-4">
-                {search ? "No hay dominios que coincidan" : "Aún no tienes dominios"}
-              </p>
-              {!search && (
-                <Button size="sm" onClick={() => setShowForm(true)}>
-                  Agregar dominio
-                </Button>
-              )}
-            </div>
+            <EmptyState
+              icon={Globe}
+              title={search ? "Sin resultados" : "Aún no tienes dominios"}
+              description={
+                search
+                  ? "No hay dominios que coincidan con tu búsqueda"
+                  : "Agrega un dominio y conéctalo a una instancia"
+              }
+              className="border-0 bg-transparent"
+              action={
+                !search ? (
+                  <Button onClick={() => setShowForm(true)}>
+                    <Plus /> Agregar dominio
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : (
             <div className="divide-y">
               {filtered.map((d) => {
@@ -335,8 +344,7 @@ export default function DomainsPage() {
                         {showDns && (
                           <Button
                             variant="ghost"
-                            size="sm"
-                            className="h-7 text-xs"
+                            className="h-9 text-xs"
                             onClick={() => setExpanded(isExpanded ? null : d.id)}
                           >
                             DNS
@@ -356,7 +364,7 @@ export default function DomainsPage() {
 
                     {isExpanded && showDns && dns && (
                       <div className="px-4 pb-4">
-                        <div className="rounded-md border bg-muted/30 p-4 space-y-3 text-sm">
+                        <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3 text-sm">
                           <p className="text-muted-foreground">
                             Agrega este registro en el DNS de tu dominio (Cloudflare, Hostinger, etc.):
                           </p>
@@ -386,7 +394,7 @@ export default function DomainsPage() {
             </div>
           )}
         </div>
-      </div>
+      </PageShell>
     </>
   )
 }

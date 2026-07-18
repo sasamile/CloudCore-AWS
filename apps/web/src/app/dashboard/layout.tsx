@@ -23,7 +23,7 @@ export default function DashboardLayout({
     <MobileNavProvider>
       <div className="flex min-h-screen">
         <Sidebar />
-        <main className="flex-1 lg:ml-[250px] brand-mesh min-h-screen min-w-0">{children}</main>
+        <main className="flex-1 lg:ml-60 brand-mesh min-h-screen min-w-0">{children}</main>
       </div>
     </MobileNavProvider>
   )

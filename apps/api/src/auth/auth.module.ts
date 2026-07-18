@@ -4,10 +4,12 @@ import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
+import { MfaModule } from '../zynauth/mfa/mfa.module';
 
 @Module({
   imports: [
     PassportModule,
+    MfaModule,
     JwtModule.registerAsync({
       useFactory: () => ({
         secret: process.env.JWT_SECRET || 'zyncloud-secret-change-in-production',

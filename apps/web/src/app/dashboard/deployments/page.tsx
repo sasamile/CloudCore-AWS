@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react"
 import { Header } from "@/components/layout/header"
+import { PageHeader } from "@/components/layout/page-header"
+import { PageShell } from "@/components/layout/page-shell"
+import { EmptyState } from "@/components/layout/empty-state"
+import { ErrorState } from "@/components/layout/error-state"
 import { api } from "@/lib/api"
 import { toast } from "@/hooks/use-toast"
 import { formatApiError } from "@/lib/format-api-error"
@@ -47,6 +51,7 @@ export default function DeploymentsPage() {
   const [deps, setDeps] = useState<Deployment[]>([])
   const [instances, setInstances] = useState<Instance[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
   const [showCreate, setShowCreate] = useState(false)
   const [busy, setBusy] = useState(false)
   const [logs, setLogs] = useState<{ repo: string; text: string } | null>(null)
@@ -58,6 +63,7 @@ export default function DeploymentsPage() {
 
   async function load() {
     setLoading(true)
+    setError("")
     try {
       const [d, inst] = await Promise.all([
         api.get<Deployment[]>("/deployments"),
@@ -67,7 +73,9 @@ export default function DeploymentsPage() {
       setInstances(inst)
       if (inst[0] && !form.instanceId) setForm((f) => ({ ...f, instanceId: inst[0].id }))
     } catch (err) {
-      toast({ title: "Error", description: formatApiError(err instanceof Error ? err.message : undefined), variant: "destructive" })
+      const msg = formatApiError(err instanceof Error ? err.message : undefined)
+      setError(msg)
+      toast({ title: "Error", description: msg, variant: "destructive" })
     } finally {
       setLoading(false)
     }
@@ -107,36 +115,46 @@ export default function DeploymentsPage() {
   return (
     <>
       <Header title="Auto-Deploy" breadcrumbs={[{ label: "Compute" }, { label: "Auto-Deploy" }]} />
-      <div className="w-full max-w-4xl px-4 py-6 sm:px-6 space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold">Despliegues automáticos</h2>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Clona un repo de GitHub dentro de una instancia, corre el build y arranca la app.
-            </p>
-          </div>
-          <Button size="sm" onClick={() => setShowCreate(true)} disabled={instances.length === 0}>
-            <Plus className="w-3.5 h-3.5" /> Nuevo deployment
-          </Button>
-        </div>
+      <PageShell maxWidth="4xl">
+        <PageHeader
+          title="Despliegues automáticos"
+          description="Clona un repo de GitHub dentro de una instancia, corre el build y arranca la app."
+          actions={
+            <Button className="h-9" onClick={() => setShowCreate(true)} disabled={instances.length === 0}>
+              <Plus className="w-3.5 h-3.5" /> Nuevo deployment
+            </Button>
+          }
+        />
 
         {instances.length === 0 && !loading && (
-          <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm text-muted-foreground">
+          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-muted-foreground">
             Necesitas al menos una instancia corriendo para desplegar.
           </div>
         )}
 
-        {loading ? (
-          <div className="rounded-lg border p-8 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
-        ) : deps.length === 0 ? (
-          <div className="rounded-lg border p-12 text-center">
-            <Rocket className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground mb-4">No hay deployments configurados.</p>
+        {error && !loading ? (
+          <ErrorState message={error} onRetry={load} />
+        ) : loading ? (
+          <div className="rounded-2xl border border-border p-10 flex justify-center">
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
           </div>
+        ) : deps.length === 0 ? (
+          <EmptyState
+            icon={Rocket}
+            title="No hay deployments configurados"
+            description="Crea un deployment para automatizar build y arranque en tus instancias."
+            action={
+              instances.length > 0 ? (
+                <Button className="h-9" onClick={() => setShowCreate(true)}>
+                  <Plus className="w-3.5 h-3.5" /> Nuevo deployment
+                </Button>
+              ) : undefined
+            }
+          />
         ) : (
           <div className="space-y-3">
             {deps.map((d) => (
-              <div key={d.id} className="rounded-lg border p-4">
+              <div key={d.id} className="rounded-2xl border border-border p-4">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <Rocket className="w-4 h-4 text-muted-foreground shrink-0" />
@@ -147,11 +165,11 @@ export default function DeploymentsPage() {
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs text-muted-foreground mr-1">→ {instanceName(d.instanceId)}</span>
                     {d.lastLog && (
-                      <Button variant="outline" size="sm" onClick={() => setLogs({ repo: d.repoFullName, text: d.lastLog || "" })}>
+                      <Button variant="outline" className="h-9" onClick={() => setLogs({ repo: d.repoFullName, text: d.lastLog || "" })}>
                         <ScrollText className="w-3.5 h-3.5" /> Logs
                       </Button>
                     )}
-                    <Button size="sm" onClick={() => trigger(d.id)}>
+                    <Button className="h-9" onClick={() => trigger(d.id)}>
                       <Play className="w-3.5 h-3.5" /> Desplegar
                     </Button>
                   </div>
@@ -163,9 +181,8 @@ export default function DeploymentsPage() {
             ))}
           </div>
         )}
-      </div>
+      </PageShell>
 
-      {/* Crear */}
       <Dialog open={showCreate} onOpenChange={(o) => !o && setShowCreate(false)}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -207,22 +224,21 @@ export default function DeploymentsPage() {
             </div>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setShowCreate(false)}>Cancelar</Button>
-            <Button onClick={create} disabled={busy}>{busy ? "..." : "Crear"}</Button>
+            <Button variant="outline" className="h-9" onClick={() => setShowCreate(false)}>Cancelar</Button>
+            <Button className="h-9" onClick={create} disabled={busy}>{busy ? "..." : "Crear"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Logs */}
       <Dialog open={!!logs} onOpenChange={(o) => !o && setLogs(null)}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="font-mono text-sm">{logs?.repo}</DialogTitle>
             <DialogDescription>Salida del último despliegue</DialogDescription>
           </DialogHeader>
-          <pre className="max-h-[50vh] overflow-auto rounded bg-[#0a0e1a] text-slate-200 p-3 text-xs font-mono whitespace-pre-wrap">{logs?.text}</pre>
+          <pre className="max-h-[50vh] overflow-auto rounded-xl border border-border bg-muted/50 p-3 text-xs font-mono whitespace-pre-wrap">{logs?.text}</pre>
           <DialogFooter>
-            <Button onClick={() => setLogs(null)}>Cerrar</Button>
+            <Button className="h-9" onClick={() => setLogs(null)}>Cerrar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -3,9 +3,12 @@
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import { Header } from "@/components/layout/header"
+import { PageHeader } from "@/components/layout/page-header"
+import { PageShell } from "@/components/layout/page-shell"
+import { EmptyState } from "@/components/layout/empty-state"
 import { api } from "@/lib/api"
 import { getSocket } from "@/lib/socket"
-import { Cpu, MemoryStick, Wifi, HardDrive } from "lucide-react"
+import { Cpu, MemoryStick, Wifi, HardDrive, Activity } from "lucide-react"
 
 interface Stats {
   cpuPercent: number
@@ -19,14 +22,14 @@ interface Stats {
   timestamp: string
 }
 
-function MiniChart({ data, color }: { data: number[]; color: string }) {
+function MiniChart({ data }: { data: number[] }) {
   const max = Math.max(...data, 1)
   const points = data
     .map((v, i) => `${(i / (data.length - 1)) * 100},${100 - (v / max) * 100}`)
     .join(" ")
   return (
-    <svg viewBox="0 0 100 100" className="w-full h-16 mt-2" preserveAspectRatio="none">
-      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+    <svg viewBox="0 0 100 100" className="w-full h-16 mt-2 text-foreground" preserveAspectRatio="none">
+      <polyline points={points} fill="none" stroke="currentColor" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
     </svg>
   )
 }
@@ -66,26 +69,35 @@ export default function MonitoringPage() {
           { label: instanceName || "...", href: `/dashboard/instances/${params.id}` },
         ]}
       />
-      <div className="w-full px-4 py-6 sm:px-6 space-y-4">
+      <PageShell maxWidth="6xl">
+        <PageHeader
+          title="Monitoring"
+          description={
+            instanceName
+              ? `Métricas en tiempo real de ${instanceName}`
+              : "CPU, memoria, red y disco de la instancia"
+          }
+        />
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="rounded-lg border p-4">
+          <div className="rounded-2xl border border-border p-4">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs text-muted-foreground">CPU Utilization</span>
               <Cpu className="w-4 h-4 text-muted-foreground" />
             </div>
-            <p className="text-2xl font-bold tracking-tight">{currentStats?.cpuPercent.toFixed(1) ?? "0"}%</p>
-            {cpuHistory.length > 1 && <MiniChart data={cpuHistory} color="#171717" />}
+            <p className="text-2xl font-semibold tracking-tight">{currentStats?.cpuPercent.toFixed(1) ?? "0"}%</p>
+            {cpuHistory.length > 1 && <MiniChart data={cpuHistory} />}
           </div>
-          <div className="rounded-lg border p-4">
+          <div className="rounded-2xl border border-border p-4">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs text-muted-foreground">Memory</span>
               <MemoryStick className="w-4 h-4 text-muted-foreground" />
             </div>
-            <p className="text-2xl font-bold tracking-tight">{currentStats?.memoryUsageMb.toFixed(0) ?? "0"} MB</p>
+            <p className="text-2xl font-semibold tracking-tight">{currentStats?.memoryUsageMb.toFixed(0) ?? "0"} MB</p>
             <p className="text-xs text-muted-foreground">of {currentStats?.memoryLimitMb ?? 0} MB</p>
-            {memHistory.length > 1 && <MiniChart data={memHistory} color="#171717" />}
+            {memHistory.length > 1 && <MiniChart data={memHistory} />}
           </div>
-          <div className="rounded-lg border p-4">
+          <div className="rounded-2xl border border-border p-4">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs text-muted-foreground">Network I/O</span>
               <Wifi className="w-4 h-4 text-muted-foreground" />
@@ -101,7 +113,7 @@ export default function MonitoringPage() {
               </div>
             </div>
           </div>
-          <div className="rounded-lg border p-4">
+          <div className="rounded-2xl border border-border p-4">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs text-muted-foreground">Disk I/O</span>
               <HardDrive className="w-4 h-4 text-muted-foreground" />
@@ -120,11 +132,13 @@ export default function MonitoringPage() {
         </div>
 
         {!currentStats && (
-          <div className="rounded-lg border p-10 text-center">
-            <p className="text-sm text-muted-foreground">Waiting for monitoring data... Make sure the instance is running.</p>
-          </div>
+          <EmptyState
+            icon={Activity}
+            title="Esperando datos de monitoreo"
+            description="Asegúrate de que la instancia esté en ejecución para recibir métricas."
+          />
         )}
-      </div>
+      </PageShell>
     </>
   )
 }
