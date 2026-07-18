@@ -233,7 +233,10 @@ export class IntegrationsService {
 
     const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
     const scripts = pkg.scripts || {};
-    const install = 'npm install';
+    // Borra node_modules y package-lock.json antes de instalar para evitar el bug de npm
+    // con optional native deps (ej. rolldown, esbuild, swc) cuando el lockfile fue generado
+    // en otro OS/arquitectura. https://github.com/npm/cli/issues/4828
+    const install = 'rm -rf node_modules package-lock.json && npm install';
 
     if (deps['next']) {
       // Usamos el CLI directamente con -p $PORT para evitar que el package.json

@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y \
     && sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config \
     && sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
 
-ENV NODE_VERSION=20.18.2
+ENV NODE_VERSION=22.16.0
 ARG TARGETARCH
 RUN ARCH=$(case "${TARGETARCH}" in arm64) echo arm64 ;; *) echo x64 ;; esac) \
     && curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${ARCH}.tar.xz" -o /tmp/node.tar.xz \
