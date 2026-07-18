@@ -124,7 +124,7 @@ export default function SecurityPage() {
   return (
     <>
       <Header title="Seguridad" breadcrumbs={[{ label: "Identity" }, { label: "Security" }]} />
-      <PageShell maxWidth="3xl">
+      <PageShell maxWidth="full">
         <PageHeader
           title="Verificación en dos pasos (MFA)"
           description="Añade una segunda capa de seguridad a tu cuenta con una app de autenticación (TOTP)."

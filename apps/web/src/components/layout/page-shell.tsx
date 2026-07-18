@@ -17,12 +17,12 @@ const maxMap = {
   full: "max-w-none",
 } as const
 
-/** Contenedor de página con gutters consistentes. */
-export function PageShell({ children, className, maxWidth = "5xl" }: PageShellProps) {
+/** Contenedor de página con gutters consistentes. Default: ancho completo (como Instances). */
+export function PageShell({ children, className, maxWidth = "full" }: PageShellProps) {
   return (
     <div
       className={cn(
-        "w-full px-4 py-6 sm:px-6 space-y-6",
+        "w-full px-4 py-6 sm:px-6 lg:px-8 space-y-6",
         maxMap[maxWidth],
         maxWidth !== "full" && "mx-auto",
         className,

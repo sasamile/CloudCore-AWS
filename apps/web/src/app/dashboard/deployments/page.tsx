@@ -115,7 +115,7 @@ export default function DeploymentsPage() {
   return (
     <>
       <Header title="Auto-Deploy" breadcrumbs={[{ label: "Compute" }, { label: "Auto-Deploy" }]} />
-      <PageShell maxWidth="4xl">
+      <PageShell maxWidth="full">
         <PageHeader
           title="Despliegues automáticos"
           description="Clona un repo de GitHub dentro de una instancia, corre el build y arranca la app."

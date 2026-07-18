@@ -89,7 +89,7 @@ export default function DatabasesPage() {
   return (
     <>
       <Header title="Databases" breadcrumbs={[{ label: "Data" }, { label: "Databases" }]} />
-      <PageShell maxWidth="4xl">
+      <PageShell maxWidth="full">
         <PageHeader
           title="Bases de datos gestionadas"
           description="Postgres bajo demanda (DBaaS). Cada una trae su propio rol y credenciales."

@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/layout/page-header"
 import { PageShell } from "@/components/layout/page-shell"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Copy, Check, Terminal, Bot } from "lucide-react"
+import { Copy, Check } from "lucide-react"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"
 
@@ -24,17 +24,25 @@ const TOOLS = [
 function CodeBlock({ code }: { code: string }) {
   const [c, setC] = useState(false)
   return (
-    <div className="relative rounded-2xl border border-border overflow-hidden">
+    <div className="relative rounded-xl border border-border overflow-hidden">
       <pre className="overflow-auto bg-muted/30 p-4 text-xs font-mono leading-relaxed">{code}</pre>
-      <Button
-        variant="outline"
-        size="icon"
-        onClick={() => { navigator.clipboard.writeText(code); setC(true); setTimeout(() => setC(false), 1200) }}
-        className="absolute top-2 right-2 h-9 w-9 bg-background/80"
+      <button
+        type="button"
+        onClick={() => {
+          navigator.clipboard.writeText(code)
+          setC(true)
+          setTimeout(() => setC(false), 1200)
+        }}
+        className="absolute top-2.5 right-2.5 inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-background/90 px-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
         aria-label="Copiar"
       >
-        {c ? <Check className="text-emerald-500" /> : <Copy />}
-      </Button>
+        {c ? (
+          <Check className="h-3 w-3 text-emerald-500" />
+        ) : (
+          <Copy className="h-3 w-3" />
+        )}
+        {c ? "Copiado" : "Copiar"}
+      </button>
     </div>
   )
 }
@@ -63,50 +71,73 @@ export default function McpPage() {
 
   return (
     <>
-      <Header title="MCP Server" breadcrumbs={[{ label: "System" }, { label: "MCP" }]} />
-      <PageShell maxWidth="3xl">
+      <Header title="MCP Server" breadcrumbs={[{ label: "System" }]} />
+      <PageShell maxWidth="full">
         <PageHeader
           title="Model Context Protocol"
-          description="Conecta agentes IA (Claude Desktop, Claude Code) a tu infraestructura de ZynCloud. El agente podrá crear instancias, buckets y bases de datos por ti."
+          description="Conecta agentes IA (Claude Desktop, Claude Code) a tu infraestructura. El agente puede crear instancias, buckets y bases de datos por ti."
         />
 
-        <section className="space-y-3">
-          <h3 className="text-sm font-medium flex items-center gap-2">
-            <Bot className="w-4 h-4 text-muted-foreground" /> 1. Registra el servidor en tu cliente MCP
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            Añade esto a la configuración de Claude Desktop / Claude Code. Tu token de sesión ya está incluido.
-          </p>
-          <CodeBlock code={config} />
-          {!token && (
-            <p className="text-xs text-amber-600 dark:text-amber-400">Inicia sesión para incrustar tu token automáticamente.</p>
-          )}
-        </section>
+        <div className="space-y-8">
+          {/* Step 1 */}
+          <section className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground">
+                1
+              </span>
+              <h3 className="text-sm font-semibold">Registra el servidor en tu cliente MCP</h3>
+            </div>
+            <p className="text-sm text-muted-foreground pl-7">
+              Añade esto a la configuración de Claude Desktop o Claude Code. Tu token de sesión ya está incluido.
+            </p>
+            <div className="pl-7">
+              <CodeBlock code={config} />
+              {!token && (
+                <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                  Inicia sesión para incrustar tu token automáticamente.
+                </p>
+              )}
+            </div>
+          </section>
 
-        <section className="space-y-3">
-          <h3 className="text-sm font-medium flex items-center gap-2">
-            <Terminal className="w-4 h-4 text-muted-foreground" /> 2. Probarlo por consola (opcional)
-          </h3>
-          <CodeBlock code={`ZYNCLOUD_API_URL=${API_URL} \\
+          {/* Step 2 */}
+          <section className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground">
+                2
+              </span>
+              <h3 className="text-sm font-semibold">Probarlo por consola (opcional)</h3>
+            </div>
+            <div className="pl-7">
+              <CodeBlock
+                code={`ZYNCLOUD_API_URL=${API_URL} \\
 ZYNCLOUD_TOKEN=${tokenPreview} \\
-node packages/mcp-server/src/index.ts`} />
-        </section>
+node packages/mcp-server/src/index.ts`}
+              />
+            </div>
+          </section>
 
-        <section className="space-y-3">
-          <h3 className="text-sm font-medium">Herramientas disponibles</h3>
-          <div className="rounded-2xl border border-border divide-y divide-border">
-            {TOOLS.map((t) => (
-              <div key={t.name} className="flex items-center justify-between px-4 py-3 gap-4">
-                <code className="font-mono text-sm">{t.name}</code>
-                <span className="text-xs text-muted-foreground text-right">{t.desc}</span>
-              </div>
-            ))}
-          </div>
-          <div className="text-xs text-muted-foreground flex items-center gap-1.5">
-            <Badge variant="secondary">stdio</Badge>
-            Protocolo MCP 2024-11-05 · paquete <code className="text-xs">@zyncloud/mcp</code>
-          </div>
-        </section>
+          {/* Tools table */}
+          <section className="space-y-3">
+            <h3 className="text-sm font-semibold">Herramientas disponibles</h3>
+            <div className="rounded-2xl border border-border divide-y divide-border overflow-hidden">
+              {TOOLS.map((t) => (
+                <div
+                  key={t.name}
+                  className="flex items-center justify-between px-4 py-3 gap-4 hover:bg-muted/40 transition-colors"
+                >
+                  <code className="font-mono text-xs">{t.name}</code>
+                  <span className="text-xs text-muted-foreground text-right">{t.desc}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground flex items-center gap-2">
+              <Badge variant="secondary" className="font-mono">stdio</Badge>
+              Protocolo MCP 2024-11-05 · paquete{" "}
+              <code className="text-[11px] bg-muted px-1.5 py-0.5 rounded">@zyncloud/mcp</code>
+            </p>
+          </section>
+        </div>
       </PageShell>
     </>
   )

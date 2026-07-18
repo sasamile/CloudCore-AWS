@@ -97,7 +97,7 @@ export default function NewInstancePage() {
           { label: "Instances", href: "/dashboard/instances" },
         ]}
       />
-      <PageShell maxWidth="4xl">
+      <PageShell maxWidth="full">
         <Button variant="ghost" asChild className="-ml-2 h-9 text-muted-foreground">
           <Link href="/dashboard/instances">
             <ArrowLeft className="w-3.5 h-3.5" /> Back to instances

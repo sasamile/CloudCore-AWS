@@ -53,7 +53,7 @@ export default function HostConsolePage() {
     return (
       <>
         <Header title="Server Console" breadcrumbs={[{ label: "System" }, { label: "Server Console" }]} />
-        <PageShell maxWidth="3xl">
+        <PageShell maxWidth="full">
           <PageHeader
             title="Server Console"
             description="Acceso directo al terminal del servidor host"

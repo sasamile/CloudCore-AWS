@@ -12,8 +12,7 @@ import { toast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { CardsSkeleton } from "@/components/skeletons/page-skeletons"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Github,
   Loader2,
@@ -52,6 +51,35 @@ interface Deployment {
   lastLog: string | null
   updatedAt: string
   instance: { name: string }
+}
+
+function DeployFormSkeleton() {
+  return (
+    <div className="space-y-5">
+      <div className="rounded-2xl border border-border">
+        <div className="px-4 py-3 border-b border-border bg-muted/30">
+          <Skeleton className="h-4 w-24" />
+        </div>
+        <div className="p-4 flex items-center justify-between gap-4">
+          <Skeleton className="h-4 w-36" />
+          <Skeleton className="h-9 w-28 rounded-md" />
+        </div>
+      </div>
+      <div className="rounded-2xl border border-border">
+        <div className="px-4 py-3 border-b border-border bg-muted/30">
+          <Skeleton className="h-4 w-32" />
+        </div>
+        <div className="p-4 space-y-2">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="flex items-center justify-between">
+              <Skeleton className="h-3 w-40" />
+              <Skeleton className="h-5 w-16 rounded-full" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function IntegrationsPage() {
@@ -158,163 +186,191 @@ function IntegrationsContent() {
 
   return (
     <>
-      <Header
-        title="Deploy"
-        breadcrumbs={[{ label: "Compute", href: "/dashboard/instances" }]}
-      />
-      <PageShell maxWidth="4xl">
-        {loading ? (
-          <CardsSkeleton count={3} />
-        ) : (
-          <>
+      <Header title="Deploy" breadcrumbs={[{ label: "Compute", href: "/dashboard/instances" }]} />
+      <PageShell maxWidth="full">
         <PageHeader
           title="Desplegar desde GitHub"
-          description="Conecta tu cuenta, elige un repositorio y despliega en una instancia — como Vercel."
+          description="Conecta tu cuenta, elige un repositorio y despliega en una instancia."
         />
 
-        <Card className="rounded-2xl border-border shadow-none">
-          <CardHeader>
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Github className="w-4 h-4" /> GitHub
-            </CardTitle>
-            <CardDescription>
-              Acceso a tus repositorios para clonar y desplegar automáticamente.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex items-center justify-between gap-4">
-            {github ? (
-              <div className="flex items-center gap-3">
-                <Badge variant="success">Conectado</Badge>
-                <span className="text-sm font-medium">@{github.username}</span>
-                {github.email && (
-                  <span className="text-xs text-muted-foreground">{github.email}</span>
+        {loading ? (
+          <DeployFormSkeleton />
+        ) : (
+          <>
+            {/* GitHub connection */}
+            <div className="rounded-2xl border border-border overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/30">
+                <Github className="w-3.5 h-3.5 text-muted-foreground" />
+                <p className="text-sm font-medium">GitHub</p>
+              </div>
+              <div className="flex items-center justify-between gap-4 px-4 py-4">
+                {github ? (
+                  <div className="flex items-center gap-3">
+                    <Badge variant="success">Conectado</Badge>
+                    <span className="text-sm font-medium">@{github.username}</span>
+                    {github.email && (
+                      <span className="text-xs text-muted-foreground">{github.email}</span>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Conecta tu cuenta para acceder a repositorios.
+                  </p>
                 )}
+                <div className="flex gap-2 shrink-0">
+                  {github ? (
+                    <>
+                      <Button variant="outline" size="icon" className="h-9 w-9" onClick={load} aria-label="Actualizar">
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button variant="outline" className="h-9" onClick={disconnectGithub}>
+                        <Unplug className="w-3.5 h-3.5" /> Desconectar
+                      </Button>
+                    </>
+                  ) : (
+                    <Button className="h-9" onClick={connectGithub} disabled={connecting}>
+                      {connecting ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Github className="w-3.5 h-3.5" />
+                      )}
+                      Conectar GitHub
+                    </Button>
+                  )}
+                </div>
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No conectado</p>
-            )}
-            <div className="flex gap-2">
-              {github ? (
-                <>
-                  <Button variant="outline" className="h-9" onClick={load}>
-                    <RefreshCw className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button variant="outline" className="h-9" onClick={disconnectGithub}>
-                    <Unplug className="w-3.5 h-3.5" /> Desconectar
-                  </Button>
-                </>
-              ) : (
-                <Button className="h-9" onClick={connectGithub} disabled={connecting}>
-                  {connecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Github className="w-3.5 h-3.5" />}
-                  Conectar GitHub
-                </Button>
-              )}
             </div>
-          </CardContent>
-        </Card>
 
-        {github && (
-          <Card className="rounded-2xl border-border shadow-none">
-            <CardHeader>
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Rocket className="w-4 h-4" /> Nuevo despliegue
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Repositorio</label>
-                  <select
-                    value={selectedRepo}
-                    onChange={(e) => {
-                      setSelectedRepo(e.target.value)
-                      const repo = repos.find((r) => r.fullName === e.target.value)
-                      if (repo) setBranch(repo.defaultBranch)
-                    }}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+            {/* Deploy form */}
+            {github && (
+              <div className="rounded-2xl border border-border overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/30">
+                  <Rocket className="w-3.5 h-3.5 text-muted-foreground" />
+                  <p className="text-sm font-medium">Nuevo despliegue</p>
+                </div>
+                <div className="p-4 space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium">Repositorio</label>
+                      <select
+                        value={selectedRepo}
+                        onChange={(e) => {
+                          setSelectedRepo(e.target.value)
+                          const repo = repos.find((r) => r.fullName === e.target.value)
+                          if (repo) setBranch(repo.defaultBranch)
+                        }}
+                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      >
+                        {repos.map((r) => (
+                          <option key={r.id} value={r.fullName}>
+                            {r.fullName}
+                            {r.private ? " (privado)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium">Instancia</label>
+                      <select
+                        value={selectedInstance}
+                        onChange={(e) => setSelectedInstance(e.target.value)}
+                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      >
+                        <option value="">Seleccionar...</option>
+                        {instances
+                          .filter((i) => i.status === "running")
+                          .map((i) => (
+                            <option key={i.id} value={i.id}>
+                              {i.name}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium">Rama</label>
+                      <Input
+                        value={branch}
+                        onChange={(e) => setBranch(e.target.value)}
+                        className="h-9"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium">Build command</label>
+                      <Input
+                        value={buildCommand}
+                        onChange={(e) => setBuildCommand(e.target.value)}
+                        className="h-9 font-mono text-xs"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Start command</label>
+                    <Input
+                      value={startCommand}
+                      onChange={(e) => setStartCommand(e.target.value)}
+                      className="h-9 font-mono text-xs"
+                    />
+                  </div>
+                  <Button
+                    className="h-9"
+                    onClick={handleDeploy}
+                    disabled={deploying || !selectedRepo || !selectedInstance}
                   >
-                    {repos.map((r) => (
-                      <option key={r.id} value={r.fullName}>
-                        {r.fullName} {r.private ? "🔒" : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Instancia</label>
-                  <select
-                    value={selectedInstance}
-                    onChange={(e) => setSelectedInstance(e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-                  >
-                    <option value="">Seleccionar...</option>
-                    {instances
-                      .filter((i) => i.status === "running")
-                      .map((i) => (
-                        <option key={i.id} value={i.id}>
-                          {i.name}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Rama</label>
-                  <Input value={branch} onChange={(e) => setBranch(e.target.value)} />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Build</label>
-                  <Input value={buildCommand} onChange={(e) => setBuildCommand(e.target.value)} />
+                    {deploying ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Rocket className="w-3.5 h-3.5" />
+                    )}
+                    Desplegar
+                  </Button>
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Start command</label>
-                <Input value={startCommand} onChange={(e) => setStartCommand(e.target.value)} />
-              </div>
-              <Button className="h-9" onClick={handleDeploy} disabled={deploying || !selectedRepo || !selectedInstance}>
-                {deploying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Rocket className="w-3.5 h-3.5" />}
-                Desplegar
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+            )}
 
-        <Card className="rounded-2xl border-border shadow-none">
-          <CardHeader>
-            <CardTitle className="text-sm flex items-center gap-2">
-              <GitBranch className="w-4 h-4" /> Historial de despliegues
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {deployments.length === 0 ? (
-              <EmptyState
-                icon={Rocket}
-                title="Aún no hay despliegues"
-                description="Conecta GitHub y lanza tu primer despliegue desde arriba."
-                className="border-0 bg-transparent py-8"
-              />
-            ) : (
-              <div className="space-y-2">
-                {deployments.map((d) => (
-                  <div key={d.id} className="rounded-xl border border-border p-3 text-sm">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-xs">{d.repoFullName}</span>
+            {/* Deployment history */}
+            <div className="rounded-2xl border border-border overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/30">
+                <GitBranch className="w-3.5 h-3.5 text-muted-foreground" />
+                <p className="text-sm font-medium">Historial de despliegues</p>
+              </div>
+              {deployments.length === 0 ? (
+                <EmptyState
+                  icon={Rocket}
+                  title="Aún no hay despliegues"
+                  description="Conecta GitHub y lanza tu primer despliegue desde arriba."
+                  className="border-0 bg-transparent py-10"
+                />
+              ) : (
+                <div className="divide-y divide-border">
+                  {deployments.map((d) => (
+                    <div
+                      key={d.id}
+                      className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/40 transition-colors"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-mono text-xs font-medium truncate">{d.repoFullName}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {d.instance.name} · rama {d.branch} ·{" "}
+                          {new Date(d.updatedAt).toLocaleString()}
+                        </p>
+                      </div>
                       <Badge
                         variant={
-                          d.status === "success" ? "success" : d.status === "error" ? "destructive" : "secondary"
+                          d.status === "success"
+                            ? "success"
+                            : d.status === "error"
+                              ? "destructive"
+                              : "secondary"
                         }
+                        className="shrink-0"
                       >
                         {d.status}
                       </Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      → {d.instance.name} · rama {d.branch} · {new Date(d.updatedAt).toLocaleString()}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  ))}
+                </div>
+              )}
+            </div>
           </>
         )}
       </PageShell>

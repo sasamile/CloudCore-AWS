@@ -218,7 +218,7 @@ export default function InstancesPage() {
         title="Instances"
         breadcrumbs={[{ label: "Compute", href: "/dashboard/instances" }]}
       />
-      <PageShell maxWidth="7xl">
+      <PageShell maxWidth="full">
         <PageHeader
           title={`Instances (${filtered.length})`}
           description="Administra tus instancias de cómputo, estado y conexiones."

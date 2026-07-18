@@ -92,8 +92,8 @@ export default function AccessKeysPage() {
 
   return (
     <>
-      <Header title="Access Keys" breadcrumbs={[{ label: "Identity" }, { label: "Access Keys" }]} />
-      <PageShell maxWidth="4xl">
+      <Header title="Access Keys" breadcrumbs={[{ label: "Identity" }]} />
+      <PageShell maxWidth="full">
         <PageHeader
           title="Access Keys"
           description="Credenciales de máquina para el SDK @zyncloud/storage (firma ZYN1)."

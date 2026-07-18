@@ -48,13 +48,23 @@ function CopyRow({ label, value }: { label: string; value: string }) {
     <div>
       <label className="text-xs text-muted-foreground">{label}</label>
       <div className="mt-1 flex items-center gap-2">
-        <code className="flex-1 rounded-lg border border-border bg-muted/50 px-3 py-2 font-mono text-xs break-all">{value}</code>
+        <code className="flex-1 rounded-lg border border-border bg-muted/50 px-3 py-2 font-mono text-xs break-all">
+          {value}
+        </code>
         <button
           type="button"
-          onClick={() => { navigator.clipboard.writeText(value); setC(true); setTimeout(() => setC(false), 1200) }}
+          onClick={() => {
+            navigator.clipboard.writeText(value)
+            setC(true)
+            setTimeout(() => setC(false), 1200)
+          }}
           className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-background transition-colors hover:bg-accent"
         >
-          {c ? <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> : <Copy className="h-4 w-4" />}
+          {c ? (
+            <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          ) : (
+            <Copy className="h-4 w-4" />
+          )}
         </button>
       </div>
     </div>
@@ -63,15 +73,22 @@ function CopyRow({ label, value }: { label: string; value: string }) {
 
 function AppsListSkeleton() {
   return (
-    <div className="space-y-3">
+    <div className="rounded-2xl border border-border divide-y divide-border overflow-hidden">
       {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="rounded-2xl border border-border bg-card/50 p-5 space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <Skeleton className="h-5 w-40" />
-            <Skeleton className="h-9 w-24" />
+        <div key={i} className="flex items-center gap-3 px-4 py-3.5">
+          <Skeleton className="h-7 w-7 rounded-lg shrink-0" />
+          <div className="flex-1 space-y-1.5">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-4 w-16 rounded-full" />
+            </div>
+            <Skeleton className="h-3 w-52" />
           </div>
-          <Skeleton className="h-3 w-full max-w-md" />
-          <Skeleton className="h-3 w-full max-w-sm" />
+          <div className="flex gap-1 shrink-0">
+            <Skeleton className="h-8 w-8 rounded-md" />
+            <Skeleton className="h-8 w-8 rounded-md" />
+            <Skeleton className="h-8 w-8 rounded-md" />
+          </div>
         </div>
       ))}
     </div>
@@ -98,19 +115,31 @@ export default function AppsPage() {
     try {
       setClients(await api.get<OAuthClient[]>("/zynauth/clients"))
     } catch (err) {
-      toast({ title: "Error", description: formatApiError(err instanceof Error ? err.message : undefined), variant: "destructive" })
+      toast({
+        title: "Error",
+        description: formatApiError(err instanceof Error ? err.message : undefined),
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
   }
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+  }, [])
 
   function parseLines(v: string): string[] {
-    return v.split(/[\n,]/).map((s) => s.trim()).filter(Boolean)
+    return v
+      .split(/[\n,]/)
+      .map((s) => s.trim())
+      .filter(Boolean)
   }
 
   function parseScopes(v: string): string[] {
-    return v.split(/\s+/).map((s) => s.trim()).filter(Boolean)
+    return v
+      .split(/\s+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
   }
 
   function resetForm() {
@@ -132,7 +161,11 @@ export default function AppsPage() {
   async function create() {
     const redirectUris = parseLines(redirects)
     if (!name.trim() || redirectUris.length === 0) {
-      toast({ title: "Faltan datos", description: "Nombre y al menos una redirect URI.", variant: "destructive" })
+      toast({
+        title: "Faltan datos",
+        description: "Nombre y al menos una redirect URI.",
+        variant: "destructive",
+      })
       return
     }
     setBusy(true)
@@ -148,7 +181,11 @@ export default function AppsPage() {
       resetForm()
       await load()
     } catch (err) {
-      toast({ title: "Error", description: formatApiError(err instanceof Error ? err.message : undefined), variant: "destructive" })
+      toast({
+        title: "Error",
+        description: formatApiError(err instanceof Error ? err.message : undefined),
+        variant: "destructive",
+      })
     } finally {
       setBusy(false)
     }
@@ -158,7 +195,11 @@ export default function AppsPage() {
     if (!editTarget) return
     const redirectUris = parseLines(redirects)
     if (!name.trim() || redirectUris.length === 0) {
-      toast({ title: "Faltan datos", description: "Nombre y al menos una redirect URI.", variant: "destructive" })
+      toast({
+        title: "Faltan datos",
+        description: "Nombre y al menos una redirect URI.",
+        variant: "destructive",
+      })
       return
     }
     setBusy(true)
@@ -174,7 +215,11 @@ export default function AppsPage() {
       await load()
       toast({ title: "App actualizada" })
     } catch (err) {
-      toast({ title: "Error", description: formatApiError(err instanceof Error ? err.message : undefined), variant: "destructive" })
+      toast({
+        title: "Error",
+        description: formatApiError(err instanceof Error ? err.message : undefined),
+        variant: "destructive",
+      })
     } finally {
       setBusy(false)
     }
@@ -182,13 +227,19 @@ export default function AppsPage() {
 
   return (
     <>
-      <Header title="Apps (ZynAuth)" breadcrumbs={[{ label: "Identity" }, { label: "Apps" }]} />
-      <PageShell maxWidth="4xl">
+      <Header title="Apps (ZynAuth)" breadcrumbs={[{ label: "Identity" }]} />
+      <PageShell maxWidth="full">
         <PageHeader
           title="Aplicaciones registradas"
-          description='Apps que autentican usuarios vía ZynAuth (equivale a los "App Clients" de Cognito).'
+          description='Apps que autentican usuarios vía ZynAuth — equivale a los "App Clients" de Cognito.'
           actions={
-            <Button className="h-9" onClick={() => { resetForm(); setShowCreate(true) }}>
+            <Button
+              className="h-9"
+              onClick={() => {
+                resetForm()
+                setShowCreate(true)
+              }}
+            >
               <Plus className="h-4 w-4" />
               Registrar app
             </Button>
@@ -201,56 +252,65 @@ export default function AppsPage() {
           <EmptyState
             icon={Boxes}
             title="No hay apps registradas"
+            description="Registra tu primera app para empezar a autenticar usuarios."
             action={
-              <Button className="h-9" onClick={() => { resetForm(); setShowCreate(true) }}>
+              <Button
+                className="h-9"
+                onClick={() => {
+                  resetForm()
+                  setShowCreate(true)
+                }}
+              >
                 <Plus className="h-4 w-4" />
                 Registrar la primera
               </Button>
             }
           />
         ) : (
-          <div className="space-y-3">
+          <div className="rounded-2xl border border-border divide-y divide-border overflow-hidden">
             {clients.map((c) => (
-              <div key={c.id} className="rounded-2xl border border-border bg-card/50 p-5">
-                <div className="mb-3 flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-background">
-                      <Boxes className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <span className="truncate font-medium">{c.name}</span>
-                    <Badge variant={c.isPublic ? "secondary" : "default"}>
-                      {c.isPublic ? "público (PKCE)" : "confidencial"}
+              <div key={c.id} className="flex items-center gap-3 px-4 py-3.5 hover:bg-muted/40 transition-colors">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border bg-background">
+                  <Boxes className="h-3.5 w-3.5 text-muted-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium truncate">{c.name}</span>
+                    <Badge
+                      variant={c.isPublic ? "secondary" : "default"}
+                      className="text-[10px] shrink-0"
+                    >
+                      {c.isPublic ? "PKCE" : "confidential"}
                     </Badge>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <code className="hidden font-mono text-xs text-muted-foreground sm:inline">{c.clientId}</code>
-                    <Button variant="ghost" size="icon" className="h-9 w-9" title="Usuarios" asChild>
-                      <Link href={`/dashboard/apps/${c.clientId}/users`}><Users className="h-4 w-4" /></Link>
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => openEdit(c)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-9 w-9 hover:bg-destructive/10 hover:text-destructive"
-                      onClick={() => setDeleteTarget(c)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-                <div className="space-y-1 text-xs text-muted-foreground">
-                  <div className="sm:hidden">
-                    <span className="text-foreground/70">Client ID:</span>{" "}
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
                     <code className="font-mono">{c.clientId}</code>
-                  </div>
-                  <div>
-                    <span className="text-foreground/70">Redirect URIs:</span> {c.redirectUris.join(", ")}
-                  </div>
-                  <div>
-                    <span className="text-foreground/70">Scopes:</span> {c.allowedScopes.join(" ")}
-                  </div>
+                    {c.redirectUris[0] && (
+                      <span>
+                        {" · "}
+                        {c.redirectUris[0]}
+                        {c.redirectUris.length > 1 ? ` +${c.redirectUris.length - 1}` : ""}
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button variant="ghost" size="icon" className="h-8 w-8" title="Usuarios" asChild>
+                    <Link href={`/dashboard/apps/${c.clientId}/users`}>
+                      <Users className="h-3.5 w-3.5" />
+                    </Link>
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(c)}>
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => setDeleteTarget(c)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
               </div>
             ))}
@@ -258,7 +318,16 @@ export default function AppsPage() {
         )}
       </PageShell>
 
-      <Dialog open={showCreate} onOpenChange={(o) => { if (!o) { setShowCreate(false); resetForm() } }}>
+      {/* Create dialog */}
+      <Dialog
+        open={showCreate}
+        onOpenChange={(o) => {
+          if (!o) {
+            setShowCreate(false)
+            resetForm()
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Registrar app</DialogTitle>
@@ -267,7 +336,13 @@ export default function AppsPage() {
           <div className="space-y-3">
             <div>
               <label className="text-sm font-medium">Nombre</label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="orbidev" className="mt-1 h-9" autoFocus />
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="mi-app"
+                className="mt-1 h-9"
+                autoFocus
+              />
             </div>
             <div>
               <label className="text-sm font-medium">Redirect URIs</label>
@@ -289,23 +364,49 @@ export default function AppsPage() {
               />
             </div>
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} className="rounded border-input" />
-              Cliente público (SPA/móvil, sin secret — PKCE obligatorio)
+              <input
+                type="checkbox"
+                checked={isPublic}
+                onChange={(e) => setIsPublic(e.target.checked)}
+                className="rounded border-input"
+              />
+              Cliente público — SPA / móvil (sin secret, PKCE obligatorio)
             </label>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" className="h-9" onClick={() => { setShowCreate(false); resetForm() }}>Cancelar</Button>
-            <Button className="h-9" onClick={create} disabled={busy}>{busy ? "..." : "Registrar"}</Button>
+            <Button
+              variant="outline"
+              className="h-9"
+              onClick={() => {
+                setShowCreate(false)
+                resetForm()
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button className="h-9" onClick={create} disabled={busy}>
+              {busy ? "Registrando..." : "Registrar"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!editTarget} onOpenChange={(o) => { if (!o) { setEditTarget(null); resetForm() } }}>
+      {/* Edit dialog */}
+      <Dialog
+        open={!!editTarget}
+        onOpenChange={(o) => {
+          if (!o) {
+            setEditTarget(null)
+            resetForm()
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Editar app</DialogTitle>
             <DialogDescription>
-              {editTarget?.clientId} · el tipo ({editTarget?.isPublic ? "público" : "confidencial"}) no se puede cambiar.
+              <code className="font-mono text-xs">{editTarget?.clientId}</code>
+              {" · "}el tipo ({editTarget?.isPublic ? "público" : "confidencial"}) no se puede cambiar.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -331,16 +432,33 @@ export default function AppsPage() {
             </div>
             <div>
               <label className="text-sm font-medium">Scopes</label>
-              <Input value={scopes} onChange={(e) => setScopes(e.target.value)} className="mt-1 h-9 font-mono text-sm" placeholder="openid profile email offline_access" />
+              <Input
+                value={scopes}
+                onChange={(e) => setScopes(e.target.value)}
+                className="mt-1 h-9 font-mono text-sm"
+                placeholder="openid profile email offline_access"
+              />
             </div>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" className="h-9" onClick={() => { setEditTarget(null); resetForm() }}>Cancelar</Button>
-            <Button className="h-9" onClick={saveEdit} disabled={busy}>{busy ? "..." : "Guardar"}</Button>
+            <Button
+              variant="outline"
+              className="h-9"
+              onClick={() => {
+                setEditTarget(null)
+                resetForm()
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button className="h-9" onClick={saveEdit} disabled={busy}>
+              {busy ? "Guardando..." : "Guardar"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* Created secret dialog */}
       <Dialog open={!!created} onOpenChange={(o) => !o && setCreated(null)}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -357,11 +475,13 @@ export default function AppsPage() {
             {created?.clientSecret ? (
               <CopyRow label="Client Secret" value={created.clientSecret} />
             ) : (
-              <p className="text-xs text-muted-foreground">Cliente público: no tiene secret, usa PKCE.</p>
+              <p className="text-xs text-muted-foreground">Cliente público — usa PKCE, sin secret.</p>
             )}
           </div>
           <DialogFooter>
-            <Button className="h-9" onClick={() => setCreated(null)}>Listo</Button>
+            <Button className="h-9" onClick={() => setCreated(null)}>
+              Listo
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -384,7 +504,11 @@ export default function AppsPage() {
             toast({ title: "App eliminada" })
             setDeleteTarget(null)
           } catch (err) {
-            toast({ title: "Error", description: formatApiError(err instanceof Error ? err.message : undefined), variant: "destructive" })
+            toast({
+              title: "Error",
+              description: formatApiError(err instanceof Error ? err.message : undefined),
+              variant: "destructive",
+            })
           } finally {
             setBusy(false)
           }

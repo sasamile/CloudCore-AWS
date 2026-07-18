@@ -201,28 +201,29 @@ export default function StoragePage() {
           <>
         <PageHeader
           title="Buckets"
-          description="Almacenamiento de objetos estilo S3"
+          description="Almacenamiento de objetos estilo S3."
           actions={
             <>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground mr-1">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => loadBuckets(true)}
-                  disabled={refreshing}
-                  aria-label="Actualizar"
-                >
-                  <RefreshCw className={refreshing ? "animate-spin" : ""} />
-                </Button>
-                <span>Actualizado {timeAgo(lastUpdated)}</span>
-              </div>
-              <Button variant="outline" asChild>
+              <span className="text-xs text-muted-foreground hidden sm:block">
+                {timeAgo(lastUpdated)}
+              </span>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-9 w-9"
+                onClick={() => loadBuckets(true)}
+                disabled={refreshing}
+                aria-label="Actualizar"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
+              </Button>
+              <Button variant="outline" className="h-9" asChild>
                 <Link href="/dashboard/storage/docs">
-                  <BookOpen /> Documentación
+                  <BookOpen className="w-3.5 h-3.5" /> Docs
                 </Link>
               </Button>
-              <Button onClick={() => setShowCreateBucket(true)}>
-                <Plus /> Crear bucket
+              <Button className="h-9" onClick={() => setShowCreateBucket(true)}>
+                <Plus className="w-3.5 h-3.5" /> Crear bucket
               </Button>
             </>
           }
@@ -296,8 +297,8 @@ export default function StoragePage() {
                       onClick={() => setSelected(b)}
                       className={`w-full text-left rounded-md px-3 py-2 text-sm transition-colors ${
                         selected?.id === b.id
-                          ? "bg-accent font-medium ring-1 ring-inset ring-ring/30"
-                          : "hover:bg-accent/50"
+                          ? "bg-accent font-medium"
+                          : "hover:bg-muted/50"
                       }`}
                     >
                       <div className="flex items-center gap-2">
@@ -319,7 +320,7 @@ export default function StoragePage() {
             {selected ? (
               <>
                 {/* Bucket header */}
-                <div className="px-4 py-3 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="px-4 py-3 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-0.5">
                       <span>Buckets</span>
@@ -354,17 +355,17 @@ export default function StoragePage() {
                     </Button>
                     <Button
                       variant="outline"
-                      className="text-destructive hover:text-destructive"
+                      className="h-9 text-destructive hover:text-destructive hover:bg-destructive/10"
                       onClick={() => setDeleteTarget({ type: "bucket", id: selected.id })}
                     >
-                      <Trash2 />
-                      Eliminar bucket
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Eliminar
                     </Button>
                   </div>
                 </div>
 
                 {/* Object search */}
-                <div className="px-4 py-2 border-b bg-muted/30">
+                <div className="px-4 py-2 border-b border-border bg-muted/30">
                   <div className="relative max-w-sm">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                     <input
@@ -402,17 +403,17 @@ export default function StoragePage() {
                   <div className="overflow-x-auto flex-1">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b bg-muted/50">
-                          <th className="h-10 px-4 text-left font-medium text-muted-foreground">Nombre (key)</th>
-                          <th className="h-10 px-4 text-left font-medium text-muted-foreground">Tamaño</th>
-                          <th className="h-10 px-4 text-left font-medium text-muted-foreground">Tipo</th>
-                          <th className="h-10 px-4 text-left font-medium text-muted-foreground">Modificado</th>
-                          <th className="h-10 px-4 text-right font-medium text-muted-foreground">Acciones</th>
+                        <tr className="border-b border-border bg-muted/30">
+                          <th className="h-9 px-4 text-left text-xs font-medium text-muted-foreground">Nombre (key)</th>
+                          <th className="h-9 px-4 text-left text-xs font-medium text-muted-foreground">Tamaño</th>
+                          <th className="h-9 px-4 text-left text-xs font-medium text-muted-foreground">Tipo</th>
+                          <th className="h-9 px-4 text-left text-xs font-medium text-muted-foreground">Modificado</th>
+                          <th className="h-9 px-4 text-right text-xs font-medium text-muted-foreground">Acciones</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredObjects.map((obj) => (
-                          <tr key={obj.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                          <tr key={obj.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
                             <td className="p-4 font-mono text-xs">{obj.key}</td>
                             <td className="p-4 text-xs text-muted-foreground">{formatBytes(obj.size)}</td>
                             <td className="p-4 text-xs text-muted-foreground">{obj.mimeType || "—"}</td>

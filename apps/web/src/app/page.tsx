@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useTheme } from "@/components/theme-provider"
-import { Moon, Sun, ShieldCheck, ArrowLeft } from "lucide-react"
+import { Moon, Sun, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -197,9 +197,6 @@ export default function LoginPage() {
               </>
             ) : (
               <>
-                <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card">
-                  <ShieldCheck className="h-5 w-5 text-foreground" />
-                </div>
                 <h1 className="text-2xl font-semibold tracking-tight">Verificación MFA</h1>
                 <p className="text-sm text-muted-foreground">
                   Introduce el código de tu autenticador o un código de respaldo.

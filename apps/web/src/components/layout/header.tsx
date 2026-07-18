@@ -11,9 +11,20 @@ interface HeaderProps {
   breadcrumbs?: { label: string; href?: string }[]
 }
 
+function crumbsForTitle(
+  title: string,
+  breadcrumbs?: { label: string; href?: string }[],
+) {
+  if (!breadcrumbs?.length) return []
+  const t = title.trim().toLowerCase()
+  // No repetir el título de página en el breadcrumb (evita "Access Keys / Access Keys").
+  return breadcrumbs.filter((c) => c.label.trim().toLowerCase() !== t)
+}
+
 export function Header({ title, breadcrumbs }: HeaderProps) {
   const { theme, toggleTheme } = useTheme()
   const { setOpen } = useMobileNav()
+  const crumbs = crumbsForTitle(title, breadcrumbs)
 
   return (
     <header className="h-14 border-b border-border flex items-center justify-between px-4 sm:px-6 sticky top-0 z-30 bg-background/90 backdrop-blur-md supports-[backdrop-filter]:bg-background/70 gap-3">
@@ -28,10 +39,10 @@ export function Header({ title, breadcrumbs }: HeaderProps) {
           <Menu className="w-5 h-5" />
         </Button>
         <div className="flex items-center gap-2 min-w-0">
-          {breadcrumbs && breadcrumbs.length > 0 && (
+          {crumbs.length > 0 && (
             <nav aria-label="Breadcrumb" className="hidden md:flex items-center gap-2 shrink-0">
-              {breadcrumbs.map((crumb, i) => (
-                <span key={i} className="flex items-center gap-2 shrink-0">
+              {crumbs.map((crumb, i) => (
+                <span key={`${crumb.label}-${i}`} className="flex items-center gap-2 shrink-0">
                   {crumb.href ? (
                     <Link
                       href={crumb.href}
@@ -46,12 +57,6 @@ export function Header({ title, breadcrumbs }: HeaderProps) {
                 </span>
               ))}
             </nav>
-          )}
-          {breadcrumbs && breadcrumbs.length > 0 && (
-            <span className="md:hidden text-muted-foreground shrink-0">
-              {breadcrumbs[breadcrumbs.length - 1]?.label}
-              <span className="text-muted-foreground/40 mx-1">/</span>
-            </span>
           )}
           <h1 className="font-semibold tracking-tight truncate">{title}</h1>
         </div>

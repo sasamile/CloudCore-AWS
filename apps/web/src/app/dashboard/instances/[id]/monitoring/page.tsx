@@ -69,7 +69,7 @@ export default function MonitoringPage() {
           { label: instanceName || "...", href: `/dashboard/instances/${params.id}` },
         ]}
       />
-      <PageShell maxWidth="6xl">
+      <PageShell maxWidth="full">
         <PageHeader
           title="Monitoring"
           description={

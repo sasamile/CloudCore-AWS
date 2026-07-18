@@ -107,7 +107,7 @@ export default function AppUsersPage() {
         title="Usuarios de la app"
         breadcrumbs={[{ label: "Identity" }, { label: "Apps" }, { label: "Usuarios" }]}
       />
-      <PageShell maxWidth="4xl">
+      <PageShell maxWidth="full">
         <Link
           href="/dashboard/apps"
           className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"

@@ -208,11 +208,11 @@ export default function DomainsPage() {
           }
           actions={
             <>
-              <Button variant="outline" size="icon" onClick={fetchAll} aria-label="Actualizar">
-                <RefreshCw />
+              <Button variant="outline" size="icon" className="h-9 w-9" onClick={fetchAll} aria-label="Actualizar">
+                <RefreshCw className="w-3.5 h-3.5" />
               </Button>
-              <Button onClick={() => setShowForm(true)}>
-                <Plus /> Agregar dominio
+              <Button className="h-9" onClick={() => setShowForm(true)}>
+                <Plus className="w-3.5 h-3.5" /> Agregar dominio
               </Button>
             </>
           }
@@ -274,7 +274,7 @@ export default function DomainsPage() {
         )}
 
         <div className="rounded-2xl border border-border">
-          <div className="px-4 py-2.5 border-b bg-muted/30 flex items-center justify-between gap-3">
+          <div className="px-4 py-2.5 border-b border-border bg-muted/30 flex items-center justify-between gap-3">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <input
@@ -286,8 +286,8 @@ export default function DomainsPage() {
               />
             </div>
             {isTunnel && pendingCount > 0 && (
-              <Button variant="outline" onClick={handleRetrySync} disabled={syncing}>
-                {syncing ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+              <Button variant="outline" className="h-8" onClick={handleRetrySync} disabled={syncing}>
+                {syncing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
                 Reintentar ({pendingCount})
               </Button>
             )}
@@ -322,7 +322,7 @@ export default function DomainsPage() {
 
                 return (
                   <div key={d.id}>
-                    <div className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors">
+                    <div className="flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <a

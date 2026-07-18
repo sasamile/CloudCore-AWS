@@ -145,7 +145,7 @@ export default function SSHKeysPage() {
         title="Key Pairs"
         breadcrumbs={[{ label: "Compute", href: "/dashboard/instances" }]}
       />
-      <PageShell maxWidth="5xl">
+      <PageShell maxWidth="full">
         <PageHeader
           title="Key Pairs"
           description="Administra pares de claves SSH para conectar a tus instancias."
