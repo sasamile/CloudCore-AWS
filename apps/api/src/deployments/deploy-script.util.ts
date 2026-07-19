@@ -120,10 +120,11 @@ export function buildDeployScript(dep: DeployTarget, token?: string): string {
 }
 
 /**
- * Script de ARRANQUE: mata la instancia previa y lanza la app en background,
- * con la versión correcta de Node. Se ejecuta en un `docker exec` DETACHED
- * aparte, para que el exec del build pueda cerrar limpio y reportar su exit.
- * Toda la salida de la app va a su log; este script en sí retorna de inmediato.
+ * Script de ARRANQUE: mata la instancia previa (por PID file) y lanza la app
+ * en PRIMER PLANO con `exec`. Se corre en un `docker exec -d` (detached), así
+ * la app ES el proceso principal del exec y Docker la mantiene viva. La salida
+ * va a su log. Usar `exec` (no `&`) es clave: con `&` el shell salía y Docker
+ * mataba al proceso huérfano.
  */
 export function buildStartScript(dep: DeployTarget): string {
   if (!dep.startCommand) return 'echo "(sin start)"';
@@ -131,6 +132,7 @@ export function buildStartScript(dep: DeployTarget): string {
   const port = dep.port || 3000;
   const wd = workDir(dep);
   const log = `/var/log/${appName}.log`;
+  const pidf = `/var/run/deploy-${appName}.pid`;
 
   return [
     'export NVM_DIR="/root/.nvm"',
@@ -143,10 +145,31 @@ export function buildStartScript(dep: DeployTarget): string {
     'elif [ -f "package.json" ]; then _NVER=$(node -e "try{var p=JSON.parse(require(\'fs\').readFileSync(\'package.json\',\'utf8\'));var n=p.engines&&p.engines.node;var m=n&&n.match(/(\\d+)/);console.log(m?m[1]:\'22\')}catch(e){console.log(\'22\')}" 2>/dev/null || echo "22");',
     'else _NVER="22"; fi',
     'nvm use "$_NVER" > /dev/null 2>&1 || true',
-    // Mata cualquier instancia previa de esta app.
-    `pkill -f "${appName}-run" > /dev/null 2>&1 || true`,
-    // Lanza con setsid (nueva sesión) y stdin cerrado; toda salida al log.
-    `setsid bash -c 'exec -a ${appName}-run env PORT=${port} HOST=0.0.0.0 ${dep.startCommand}' > "${log}" 2>&1 < /dev/null &`,
-    `echo "App ${appName} lanzada en puerto ${port} (log: ${log})"`,
+    // Mata la instancia previa de ESTA app por su PID file (fiable, no toca otras apps).
+    `if [ -f "${pidf}" ]; then kill "$(cat "${pidf}")" > /dev/null 2>&1 || true; sleep 1; fi`,
+    // Guarda el PID (se conserva tras exec) y lanza la app en primer plano.
+    `echo $$ > "${pidf}"`,
+    `exec env PORT=${port} HOST=0.0.0.0 ${dep.startCommand} > "${log}" 2>&1 < /dev/null`,
+  ].join('\n');
+}
+
+/**
+ * Health check: espera hasta ~25s a que la app responda en su puerto interno.
+ * Devuelve un script que imprime "APP UP" o "APP DOWN" para reflejar en logs.
+ */
+export function buildHealthCheckScript(dep: DeployTarget): string {
+  const port = dep.port || 3000;
+  const appName = appNameOf(dep);
+  const log = `/var/log/${appName}.log`;
+  return [
+    'set +e',
+    `for i in $(seq 1 25); do`,
+    `  if curl -sS -m 3 -o /dev/null "http://127.0.0.1:${port}"; then echo "APP UP en puerto ${port}"; exit 0; fi`,
+    '  sleep 1',
+    'done',
+    `echo "APP DOWN: no respondió en el puerto ${port} tras 25s"`,
+    `echo "--- últimas líneas del log de la app ---"`,
+    `tail -20 "${log}" 2>/dev/null || echo "(sin log)"`,
+    'exit 0',
   ].join('\n');
 }

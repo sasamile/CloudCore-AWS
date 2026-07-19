@@ -4,7 +4,7 @@ import { DockerService } from '../docker/docker.service';
 import { InstancesService } from '../instances/instances.service';
 import { IntegrationsService } from '../integrations/integrations.service';
 import { TunnelService } from '../tunnel/tunnel.service';
-import { buildDeployScript, buildStartScript } from './deploy-script.util';
+import { buildDeployScript, buildStartScript, buildHealthCheckScript } from './deploy-script.util';
 import { buildDeploymentHostname } from '../common/networking.util';
 
 export interface CreateDeploymentInput {
@@ -205,11 +205,18 @@ export class DeploymentsService {
 
     let finalLog = output;
 
-    // Arranca la app en un exec DETACHED aparte (no bloquea ni rompe el stream).
+    // Arranca la app en un exec DETACHED aparte (no bloquea ni rompe el stream),
+    // luego verifica con un health check que realmente levantó en su puerto.
     if (success && dep.startCommand) {
       try {
         await this.docker.startDetached(containerId, buildStartScript(dep));
-        finalLog += `\n== START ==\nApp arrancada en background (puerto ${dep.port ?? 3000}).`;
+        finalLog += `\n== START ==\nApp arrancada (puerto ${dep.port ?? 3000}). Verificando...`;
+        const health = await this.docker.runScript(
+          containerId,
+          buildHealthCheckScript(dep),
+          40 * 1000,
+        );
+        finalLog += `\n${health.output.trim()}`;
       } catch (e) {
         this.logger.warn(`Deploy ${deploymentId}: build OK pero arranque falló: ${(e as Error).message}`);
         finalLog += `\n== START FAIL ==\n${(e as Error).message}`;
