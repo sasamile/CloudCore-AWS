@@ -4,7 +4,7 @@ import { DockerService } from '../docker/docker.service';
 import { InstancesService } from '../instances/instances.service';
 import { IntegrationsService } from '../integrations/integrations.service';
 import { TunnelService } from '../tunnel/tunnel.service';
-import { buildDeployScript } from './deploy-script.util';
+import { buildDeployScript, buildStartScript } from './deploy-script.util';
 import { buildDeploymentHostname } from '../common/networking.util';
 
 export interface CreateDeploymentInput {
@@ -203,11 +203,24 @@ export class DeploymentsService {
     // no reportó exit code por alguna razón.
     const success = !timedOut && (exitCode === 0 || (exitCode === null && /== OK ==/.test(output)));
 
+    let finalLog = output;
+
+    // Arranca la app en un exec DETACHED aparte (no bloquea ni rompe el stream).
+    if (success && dep.startCommand) {
+      try {
+        await this.docker.startDetached(containerId, buildStartScript(dep));
+        finalLog += `\n== START ==\nApp arrancada en background (puerto ${dep.port ?? 3000}).`;
+      } catch (e) {
+        this.logger.warn(`Deploy ${deploymentId}: build OK pero arranque falló: ${(e as Error).message}`);
+        finalLog += `\n== START FAIL ==\n${(e as Error).message}`;
+      }
+    }
+
     await this.prisma.deployment.update({
       where: { id: deploymentId },
       data: {
         status: success ? 'success' : 'error',
-        lastLog: output.slice(-8000),
+        lastLog: finalLog.slice(-8000),
       },
     });
     this.logger.log(`Deploy ${deploymentId}: ${success ? 'success' : 'error'}`);

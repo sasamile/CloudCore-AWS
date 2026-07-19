@@ -178,6 +178,21 @@ export class DockerService {
     });
   }
 
+  /**
+   * Lanza un script en un exec DETACHED: Docker lo corre en segundo plano y
+   * retornamos de inmediato sin adjuntar streams. Ideal para arrancar procesos
+   * de larga vida (servidores de apps) sin bloquear ni romper el exec del build.
+   */
+  async startDetached(containerId: string, script: string): Promise<void> {
+    const container = this.docker.getContainer(containerId);
+    const exec = await container.exec({
+      Cmd: ['bash', '-c', script],
+      AttachStdout: false,
+      AttachStderr: false,
+    });
+    await exec.start({ Detach: true });
+  }
+
   async attachToContainer(containerId: string) {
     const container = this.docker.getContainer(containerId);
     const exec = await container.exec({

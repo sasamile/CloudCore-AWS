@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DockerService } from '../docker/docker.service';
 import { TunnelService } from '../tunnel/tunnel.service';
 import { encryptSecret, decryptSecret } from '../common/crypto.util';
-import { buildDeployScript } from '../deployments/deploy-script.util';
+import { buildDeployScript, buildStartScript } from '../deployments/deploy-script.util';
 
 interface OAuthState {
   userId?: string;
@@ -564,9 +564,18 @@ export class IntegrationsService {
       try {
         const { output, timedOut, exitCode } = await this.docker.runScript(dep.instance.containerId!, script);
         const success = !timedOut && (exitCode === 0 || (exitCode === null && /== OK ==/.test(output)));
+        let finalLog = output;
+        if (success && dep.startCommand) {
+          try {
+            await this.docker.startDetached(dep.instance.containerId!, buildStartScript(dep));
+            finalLog += `\n== START ==\nApp arrancada en background (puerto ${dep.port ?? 3000}).`;
+          } catch (e) {
+            finalLog += `\n== START FAIL ==\n${(e as Error).message}`;
+          }
+        }
         await this.prisma.deployment.update({
           where: { id: dep.id },
-          data: { status: success ? 'success' : 'error', lastLog: output.slice(-8000) },
+          data: { status: success ? 'success' : 'error', lastLog: finalLog.slice(-8000) },
         });
         if (success && dep.hostname && this.tunnel.isTunnelMode()) {
           try {

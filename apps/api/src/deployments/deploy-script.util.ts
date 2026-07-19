@@ -8,12 +8,30 @@ export interface DeployTarget {
   hostname?: string | null;
 }
 
+function dirNameOf(dep: DeployTarget): string {
+  return dep.repoFullName.split('/').pop() || 'app';
+}
+
+function appNameOf(dep: DeployTarget): string {
+  return dirNameOf(dep).replace(/[^a-zA-Z0-9_-]/g, '-');
+}
+
+function workDir(dep: DeployTarget): string {
+  const rootDir = dep.rootDir && dep.rootDir.trim() ? dep.rootDir : '.';
+  return `/apps/${dirNameOf(dep)}/${rootDir}`.replace(/\/\.$/, '');
+}
+
+/**
+ * Script de BUILD: clona/actualiza, ajusta la versión de Node, compila y
+ * configura el enrutado nginx. NO arranca la app (eso keep-alive rompería el
+ * stream del `docker exec`). Termina con exit 0 explícito para señalar éxito.
+ */
 export function buildDeployScript(dep: DeployTarget, token?: string): string {
   const repoUrl = token
     ? `https://x-access-token:${token}@github.com/${dep.repoFullName}.git`
     : `https://github.com/${dep.repoFullName}.git`;
-  const dirName = dep.repoFullName.split('/').pop() || 'app';
-  const appName = dirName.replace(/[^a-zA-Z0-9_-]/g, '-');
+  const dirName = dirNameOf(dep);
+  const appName = appNameOf(dep);
   const port = dep.port || 3000;
   const rootDir = dep.rootDir && dep.rootDir.trim() ? dep.rootDir : '.';
   const hostname = dep.hostname && dep.hostname.trim() ? dep.hostname.trim() : null;
@@ -62,22 +80,6 @@ export function buildDeployScript(dep: DeployTarget, token?: string): string {
 
     dep.buildCommand ? `echo "== BUILD =="; ${dep.buildCommand}` : 'echo "(sin build)"',
 
-    // ── Arrancar app en background ─────────────────────────────────────────────
-    // Usamos nohup + disown (más portables que setsid) para que el proceso
-    // sobreviva cuando el exec de Docker se cierra.
-    // El bloque completo está en una subshell con || true para que cualquier
-    // fallo al arrancar NO bloquee el echo "== OK ==" final.
-    dep.startCommand
-      ? [
-          'echo "== START =="',
-          `( pkill -f "${appName}-run" > /dev/null 2>&1 || true`,
-          `  nohup bash -c '. "$NVM_DIR/nvm.sh" 2>/dev/null || true; nvm use "$_NVER" > /dev/null 2>&1 || true; ${dep.startCommand}' \\`,
-          `    > "/var/log/${appName}.log" 2>&1 &`,
-          `  disown $!`,
-          ') || true',
-        ].join('\n')
-      : 'echo "(sin start)"',
-
     // ── Enrutado público: nginx dentro del contenedor por Host header ──────────
     // El túnel manda {hostname} → contenedor:80; nginx aquí lo pasa al puerto
     // interno del proyecto. Así cada proyecto tiene su propia URL.
@@ -112,7 +114,39 @@ export function buildDeployScript(dep: DeployTarget, token?: string): string {
       : []),
 
     'echo "== OK =="',
-    // Salida explícita 0: garantiza exitCode 0 pese a jobs en background.
+    // Salida explícita 0: garantiza exitCode 0 pese al trap.
     'exit 0',
+  ].join('\n');
+}
+
+/**
+ * Script de ARRANQUE: mata la instancia previa y lanza la app en background,
+ * con la versión correcta de Node. Se ejecuta en un `docker exec` DETACHED
+ * aparte, para que el exec del build pueda cerrar limpio y reportar su exit.
+ * Toda la salida de la app va a su log; este script en sí retorna de inmediato.
+ */
+export function buildStartScript(dep: DeployTarget): string {
+  if (!dep.startCommand) return 'echo "(sin start)"';
+  const appName = appNameOf(dep);
+  const port = dep.port || 3000;
+  const wd = workDir(dep);
+  const log = `/var/log/${appName}.log`;
+
+  return [
+    'export NVM_DIR="/root/.nvm"',
+    '. "$NVM_DIR/nvm.sh" > /dev/null 2>&1 || true',
+    `export PORT=${port}`,
+    'export HOST=0.0.0.0',
+    `cd "${wd}" 2>/dev/null || cd "/apps/${dirNameOf(dep)}"`,
+    // Detecta la versión de Node ya instalada por el build (misma lógica).
+    'if [ -f ".nvmrc" ]; then _NVER="$(cat .nvmrc | tr -d \'[:space:]\')";',
+    'elif [ -f "package.json" ]; then _NVER=$(node -e "try{var p=JSON.parse(require(\'fs\').readFileSync(\'package.json\',\'utf8\'));var n=p.engines&&p.engines.node;var m=n&&n.match(/(\\d+)/);console.log(m?m[1]:\'22\')}catch(e){console.log(\'22\')}" 2>/dev/null || echo "22");',
+    'else _NVER="22"; fi',
+    'nvm use "$_NVER" > /dev/null 2>&1 || true',
+    // Mata cualquier instancia previa de esta app.
+    `pkill -f "${appName}-run" > /dev/null 2>&1 || true`,
+    // Lanza con setsid (nueva sesión) y stdin cerrado; toda salida al log.
+    `setsid bash -c 'exec -a ${appName}-run env PORT=${port} HOST=0.0.0.0 ${dep.startCommand}' > "${log}" 2>&1 < /dev/null &`,
+    `echo "App ${appName} lanzada en puerto ${port} (log: ${log})"`,
   ].join('\n');
 }
