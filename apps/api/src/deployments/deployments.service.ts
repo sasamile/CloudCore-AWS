@@ -198,8 +198,10 @@ export class DeploymentsService {
     }
 
     const script = buildDeployScript(dep, token);
-    const { output, timedOut } = await this.docker.runScript(containerId, script);
-    const success = !timedOut && /== OK ==/.test(output);
+    const { output, timedOut, exitCode } = await this.docker.runScript(containerId, script);
+    // Éxito por código de salida real (fiable); cae al marcador == OK == si Docker
+    // no reportó exit code por alguna razón.
+    const success = !timedOut && (exitCode === 0 || (exitCode === null && /== OK ==/.test(output)));
 
     await this.prisma.deployment.update({
       where: { id: deploymentId },

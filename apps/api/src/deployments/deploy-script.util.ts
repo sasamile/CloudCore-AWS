@@ -20,6 +20,9 @@ export function buildDeployScript(dep: DeployTarget, token?: string): string {
 
   return [
     'set -e',
+    // Si algo falla (comando no protegido con || true), el trap imprime la línea
+    // exacta antes de que set -e corte el script. Facilita el diagnóstico en logs.
+    `trap 'echo "== FAIL (exit $?) en comando: $BASH_COMMAND =="' ERR`,
     'export DEBIAN_FRONTEND=noninteractive',
     `export PORT=${port}`,
     'export HOST=0.0.0.0',
@@ -109,5 +112,7 @@ export function buildDeployScript(dep: DeployTarget, token?: string): string {
       : []),
 
     'echo "== OK =="',
+    // Salida explícita 0: garantiza exitCode 0 pese a jobs en background.
+    'exit 0',
   ].join('\n');
 }

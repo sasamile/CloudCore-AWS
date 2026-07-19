@@ -128,7 +128,7 @@ export class DockerService {
     containerId: string,
     script: string,
     timeoutMs = 10 * 60 * 1000,
-  ): Promise<{ output: string; timedOut: boolean }> {
+  ): Promise<{ output: string; timedOut: boolean; exitCode: number | null }> {
     const container = this.docker.getContainer(containerId);
     // Tty:false → Docker multiplexa stdout/stderr con headers de 8 bytes por frame.
     // Parseamos esos frames para extraer el texto limpio. Esto es más robusto que
@@ -145,10 +145,20 @@ export class DockerService {
       let done = false;
       let pending = Buffer.alloc(0);
 
-      const finish = (timedOut: boolean) => {
+      const finish = async (timedOut: boolean) => {
         if (done) return;
         done = true;
-        resolve({ output: textChunks.join(''), timedOut });
+        // Código de salida real del proceso — señal de éxito fiable, no un string.
+        let exitCode: number | null = null;
+        if (!timedOut) {
+          try {
+            const info = await exec.inspect();
+            exitCode = typeof info.ExitCode === 'number' ? info.ExitCode : null;
+          } catch {
+            exitCode = null;
+          }
+        }
+        resolve({ output: textChunks.join(''), timedOut, exitCode });
       };
 
       stream.on('data', (chunk: Buffer) => {
@@ -162,9 +172,9 @@ export class DockerService {
           pending = pending.slice(8 + frameSize);
         }
       });
-      stream.on('end', () => finish(false));
-      stream.on('error', () => finish(false));
-      setTimeout(() => finish(true), timeoutMs);
+      stream.on('end', () => void finish(false));
+      stream.on('error', () => void finish(false));
+      setTimeout(() => void finish(true), timeoutMs);
     });
   }
 

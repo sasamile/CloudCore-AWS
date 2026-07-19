@@ -562,8 +562,8 @@ export class IntegrationsService {
     // Corre en background — el webhook responde rápido
     setImmediate(async () => {
       try {
-        const { output, timedOut } = await this.docker.runScript(dep.instance.containerId!, script);
-        const success = !timedOut && /== OK ==/.test(output);
+        const { output, timedOut, exitCode } = await this.docker.runScript(dep.instance.containerId!, script);
+        const success = !timedOut && (exitCode === 0 || (exitCode === null && /== OK ==/.test(output)));
         await this.prisma.deployment.update({
           where: { id: dep.id },
           data: { status: success ? 'success' : 'error', lastLog: output.slice(-8000) },
